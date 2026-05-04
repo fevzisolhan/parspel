@@ -76,7 +76,7 @@ export function calcMargin(price: number, cost: number): number {
 // parseBankDate: DD.MM.YYYY, DD/MM/YYYY, DD-MM-YYYY → Date (UTC) | null
 export function parseBankDate(s: string): Date | null {
   if (!s) return null;
-  const match = s.match(/^(\d{1,2})[.\-\/](\d{1,2})[.\-\/](\d{4})$/);
+  const match = s.match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{4})$/);
   if (!match) return null;
   const [, d, m, y] = match;
   const date = new Date(`${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}T00:00:00.000Z`);

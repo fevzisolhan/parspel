@@ -29,7 +29,7 @@ function loadDismissed(): Set<string> {
 }
 
 function saveDismissed(set: Set<string>) {
-  try { sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...set])); } catch {}
+  try { sessionStorage.setItem(DISMISSED_KEY, JSON.stringify([...set])); } catch { /* sessizce geç */ }
 }
 
 export default function NotificationCenter({ db, onNavigate }: Props) {

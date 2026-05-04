@@ -8,40 +8,19 @@ import { exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 import { formatDate } from '@/lib/utils-tr';
 import { hashPassword as hashPass } from '@/lib/userManager';
-import { loadUsers, saveUsers, createUser, updateUserPassword, toggleUserActive, deleteUser, updateUserRole, getUserSession, type AppUser, type UserRole } from '@/lib/userManager';
+import { loadUsers, createUser, updateUserPassword, toggleUserActive, deleteUser, updateUserRole, getUserSession, type AppUser, type UserRole } from '@/lib/userManager';
 import { loadUIPrefs, saveUIPrefs, applyUIPrefs, THEMES, DEFAULT_PREFS, type UIPrefs } from '@/hooks/useUIPrefs';
 import { loadConnConfig, saveConnConfig, testFirebase, testSupabase, DEFAULT_CONN, type ConnConfig } from '@/lib/connConfig';
 import { saveBackupToFirebase } from '@/hooks/useDB';
 import { mergeRestoreDB, type RestoreReport } from '@/hooks/useDB';
 import { SystemMap } from '@/components/SystemMap';
 import { CHANGELOG, CHANGE_TYPE_CONFIG } from '@/lib/changelog';
-import { loadAppConfig, saveAppConfig, validateVersion, APP_NAME, APP_SUBTITLE } from '@/lib/appConfig';
+import { loadAppConfig, saveAppConfig, validateVersion, APP_SUBTITLE } from '@/lib/appConfig';
 
 // Firebase auth config (parola Settings'ten de değiştirilebilir)
 const FIREBASE_PROJECT = 'pars-001-bae2d';
 const FIREBASE_API_KEY = 'AIzaSyDxr7PNnh_-kt04sX2VcwER8coM2UWPg5k';
 const FIREBASE_AUTH_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/config/auth?key=${FIREBASE_API_KEY}`;
-
-async function fetchCurrentHash(): Promise<string | null> {
-  try {
-    const res = await fetch(FIREBASE_AUTH_URL, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json?.fields?.hash?.stringValue ?? null;
-  } catch { return null; }
-}
-
-async function updateHashInFirebase(hash: string): Promise<boolean> {
-  try {
-    const res = await fetch(FIREBASE_AUTH_URL, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { hash: { stringValue: hash }, updatedAt: { stringValue: new Date().toISOString() } } }),
-      signal: AbortSignal.timeout(8000),
-    });
-    return res.ok;
-  } catch { return false; }
-}
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () => void; importJSON: (f: File) => Promise<boolean>; }
 
@@ -83,7 +62,7 @@ function saveSoundSettingsToStorage(settings: SoundSettings) {
     const parsed = raw ? JSON.parse(raw) : {};
     parsed.soundSettings = settings;
     localStorage.setItem('sobaYonetim', JSON.stringify(parsed));
-  } catch {}
+  } catch { /* localStorage yazma hatası — sessizce geç */ }
 }
 
 export default function Settings({ db, save, exportJSON, importJSON }: Props) {
@@ -203,7 +182,7 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
       )}
 
       {tab === 'sound' && (
-        <SoundSettings playSound={playSound} />
+        <SoundSettingsPanel playSound={playSound} />
       )}
 
       {tab === 'backup' && (
@@ -557,7 +536,7 @@ function AdminPanel({ showToast }: { showToast: (msg: string, type?: 'success' |
   );
 }
 
-function SoundSettings({ playSound }: { playSound: (type: SoundType) => void }) {
+function SoundSettingsPanel({ playSound }: { playSound: (type: SoundType) => void }) {
   const [settings, setSettings] = useState<SoundSettings>(loadSoundSettings);
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(() => {
     try {
@@ -1498,7 +1477,7 @@ function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
           company: current.company || {}, settings: {}, pelletSettings: { gramaj: 14, kgFiyat: 6.5, cuvalKg: 15, critDays: 3 },
           ortakEmanetler: [], installments: [],
         };
-        let finalData: Record<string, unknown> = { ...def, ...mapped };
+        const finalData: Record<string, unknown> = { ...def, ...mapped };
 
         const conflictEntities = ['products', 'cari', 'suppliers', 'sales'] as const;
         conflictEntities.forEach(entity => {
@@ -2264,27 +2243,10 @@ function ArayuzAyarlari({ prefs, onChange, showToast }: {
     <div style={{ display: 'grid', gap: 16 }}>
 
       {/* Hazır Temalar */}
-      <Card title="🎨 Hazır Temalar">
-        {/* Açık/Koyu mod toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.07)' }}>
-          <span style={{ fontSize: '1.1rem' }}>{prefs.lightMode ? '☀️' : '🌙'}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>{prefs.lightMode ? 'Açık Tema' : 'Koyu Tema'}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{prefs.lightMode ? 'Ferah ve aydınlık görünüm' : 'Göz yormayan karanlık görünüm'}</div>
-          </div>
-          <div
-            onClick={() => set({ lightMode: !prefs.lightMode })}
-            style={{ width: 48, height: 26, borderRadius: 13, background: prefs.lightMode ? 'var(--accent)' : 'rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}
-          >
-            <div style={{ position: 'absolute', top: 3, left: prefs.lightMode ? 25 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }} />
-          </div>
-        </div>
-
-        {/* Koyu temalar */}
-        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>🌙 Koyu Temalar</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 16 }}>
-          {THEMES.filter(t => !t.light).map(t => {
-            const isActive = prefs.accent === t.accent && prefs.bgBase === t.bg && !prefs.lightMode;
+      <Card title="🎨 Temalar">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+          {THEMES.map(t => {
+            const isActive = prefs.accent === t.accent && prefs.bgBase === t.bg;
             return (
               <button
                 key={t.id}
@@ -2296,29 +2258,6 @@ function ArayuzAyarlari({ prefs, onChange, showToast }: {
                   <div style={{ width: 18, height: 18, borderRadius: 5, background: t.bg, border: '1px solid rgba(255,255,255,0.1)' }} />
                 </div>
                 <div style={{ fontWeight: 700, color: isActive ? t.accent : '#f1f5f9', fontSize: '0.82rem' }}>{t.label}</div>
-                <div style={{ color: '#475569', fontSize: '0.7rem', marginTop: 2 }}>{t.desc}</div>
-                {isActive && <div style={{ position: 'absolute', top: 7, right: 7, width: 16, height: 16, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#fff', fontWeight: 900 }}>✓</div>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Açık temalar */}
-        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>☀️ Açık Temalar — Güneş Altında Okunabilir</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
-          {THEMES.filter(t => t.light).map(t => {
-            const isActive = prefs.accent === t.accent && prefs.bgBase === t.bg && prefs.lightMode;
-            return (
-              <button
-                key={t.id}
-                onClick={() => { set({ accent: t.accent, bgBase: t.bg, lightMode: true }); showToast(`${t.label} teması uygulandı!`, 'success'); }}
-                style={{ padding: '12px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', background: isActive ? `${t.accent}18` : t.bg, border: `2px solid ${isActive ? t.accent : 'rgba(0,0,0,0.12)'}`, transition: 'all 0.15s', position: 'relative', overflow: 'hidden' }}
-              >
-                <div style={{ display: 'flex', gap: 5, marginBottom: 7 }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 5, background: t.accent, boxShadow: `0 0 6px ${t.accent}40` }} />
-                  <div style={{ width: 18, height: 18, borderRadius: 5, background: t.bg, border: '1px solid rgba(0,0,0,0.15)' }} />
-                </div>
-                <div style={{ fontWeight: 700, color: isActive ? t.accent : '#0f172a', fontSize: '0.82rem' }}>{t.label}</div>
                 <div style={{ color: '#475569', fontSize: '0.7rem', marginTop: 2 }}>{t.desc}</div>
                 {isActive && <div style={{ position: 'absolute', top: 7, right: 7, width: 16, height: 16, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#fff', fontWeight: 900 }}>✓</div>}
               </button>

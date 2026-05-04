@@ -78,7 +78,7 @@ export function loadUIPrefs(): UIPrefs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
-  } catch {}
+  } catch { /* localStorage okuma hatası */ }
   return { ...DEFAULT_PREFS };
 }
 
@@ -204,15 +204,6 @@ export const THEMES = [
   { id: 'pembe',     label: '🌸 Pembe',      accent: '#ec4899', bg: '#0f0510', desc: 'Neon pembe',                  light: false },
   { id: 'gri',       label: '🩶 Gri',        accent: '#94a3b8', bg: '#0a0f18', desc: 'Minimal gri',                 light: false },
   { id: 'kirmizi',   label: '❤️ Kırmızı',   accent: '#ef4444', bg: '#0f0505', desc: 'Canlı kırmızı',               light: false },
-
-  // ── Açık Temalar (Güneş Altında Okunabilir) ───────────────────────────────
-  // Beyaz zemin + çok koyu metin → kontrast 7:1+ (WCAG AAA)
-  { id: 'kartal',    label: '🦅 Kartal',     accent: '#1d4ed8', bg: '#ffffff', desc: 'Beyaz + koyu mavi — max kontrast',  light: true },
-  { id: 'siyah_ak',  label: '⬛ Siyah/Ak',   accent: '#111827', bg: '#f9fafb', desc: 'Siyah metin — güneş altında ideal', light: true },
-  { id: 'amber',     label: '🟡 Amber',      accent: '#92400e', bg: '#fffbeb', desc: 'Sarı zemin — en yüksek görünürlük', light: true },
-  { id: 'deniz',     label: '🌊 Deniz',      accent: '#0c4a6e', bg: '#f0f9ff', desc: 'Açık mavi — ferah ve net',          light: true },
-  { id: 'cimen_ac',  label: '🌿 Çimen',      accent: '#14532d', bg: '#f0fdf4', desc: 'Açık yeşil — doğal ve net',         light: true },
-  { id: 'gunes_ac',  label: '☀️ Güneş',     accent: '#7c2d12', bg: '#fff7ed', desc: 'Turuncu zemin — sıcak ve okunur',   light: true },
-  { id: 'beton',     label: '🏗️ Beton',     accent: '#1e293b', bg: '#f8fafc', desc: 'Gri zemin — nötr ve net',           light: true },
-  { id: 'kontrast',  label: '⚡ Kontrast',   accent: '#000000', bg: '#ffffff', desc: 'Saf siyah/beyaz — max okunabilirlik', light: true },
+  { id: 'lacivert',  label: '🌌 Lacivert',   accent: '#6366f1', bg: '#0a0f18', desc: 'Koyu lacivert',               light: false },
+  { id: 'titan',     label: '⚙️ Titan',      accent: '#64748b', bg: '#0d1117', desc: 'Saf siyah — terminal',        light: false },
 ] as const;

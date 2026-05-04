@@ -203,7 +203,7 @@ async function saveToFirebase(db: DB): Promise<void> {
     const ms = t.end({ version: db._version, ok: res.ok });
     if (res.ok) {
       emitSync('saved', `v${db._version} · ${ms}ms`);
-      logger.info('sync', `Firebase\'e kaydedildi`, { version: db._version, ms });
+      logger.info('sync', `Firebase'e kaydedildi`, { version: db._version, ms });
       // Her 10 versiyonda bir otomatik yedek al
       if ((db._version || 0) % 10 === 0 && db._version > 0) {
         saveBackupToFirebase(db).catch(() => {});
@@ -945,10 +945,11 @@ export function useDB() {
     // Top 5 ürün (bu ay ciro)
     const productMap: Record<string, { name: string; ciro: number; adet: number; kar: number }> = {};
     monthSales.forEach(s => {
-      if (!productMap[s.productId]) productMap[s.productId] = { name: s.productName, ciro: 0, adet: 0, kar: 0 };
-      productMap[s.productId].ciro += s.total;
-      productMap[s.productId].adet += s.quantity;
-      productMap[s.productId].kar += s.profit;
+      const pid = s.productId ?? s.productName ?? 'bilinmiyor';
+      if (!productMap[pid]) productMap[pid] = { name: s.productName ?? '', ciro: 0, adet: 0, kar: 0 };
+      productMap[pid].ciro += s.total;
+      productMap[pid].adet += s.quantity;
+      productMap[pid].kar += s.profit;
     });
     const topProducts = Object.values(productMap).sort((a, b) => b.ciro - a.ciro).slice(0, 5);
 
