@@ -34,6 +34,8 @@ export default function Products({ db, save }: Props) {
 
   const handleSave = () => {
     if (!form.name) { showToast('Ürün adı gerekli!', 'error'); return; }
+    const price = Number(form.price);
+    if (!price || price <= 0) { showToast('Satış fiyatı 0\'dan büyük olmalı!', 'error'); return; }
     const nowIso = new Date().toISOString();
     save(prev => {
       const products = [...prev.products];

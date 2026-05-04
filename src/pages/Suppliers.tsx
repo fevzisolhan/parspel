@@ -223,12 +223,16 @@ export default function Suppliers({ db, save }: Props) {
         });
 
         // Stok hareketlerini ekle (çıkış)
-        const stockMovements = [...prev.stockMovements, ...order.items.map(i => ({
-          id: genId(), productId: i.productId, productName: i.productName, type: 'cikis' as const,
-          amount: i.qty, before: prev.products.find(p => p.id === i.productId)?.stock || 0,
-          after: Math.max(0, (prev.products.find(p => p.id === i.productId)?.stock || 0) - i.qty),
-          note: 'Sipariş geri alındı', date: nowIso,
-        }))];
+        const stockMovements = [...prev.stockMovements, ...order.items.map(i => {
+          const currentStock = prev.products.find(p => p.id === i.productId)?.stock || 0;
+          const after = Math.max(0, currentStock - i.qty);
+          const actualDecrease = currentStock - after; // gerçek düşüş (stok yetersizse i.qty'den az olabilir)
+          return {
+            id: genId(), productId: i.productId, productName: i.productName, type: 'cikis' as const,
+            amount: -actualDecrease, before: currentStock, after,
+            note: 'Sipariş geri alındı', date: nowIso,
+          };
+        })];
 
         // Cari borcu geri al
         const cariTutar = order.amount + (order.nakliye || 0);
