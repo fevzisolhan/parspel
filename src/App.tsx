@@ -28,6 +28,7 @@ import ExcelMerge from '@/pages/ExcelMerge';
 import Notlar from '@/pages/Notlar';
 import Cizelge from '@/pages/Cizelge';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { QuantumLink } from '@/components/QuantumLink';
 import { formatMoney, genId } from '@/lib/utils-tr';
 import { Modal } from '@/components/Modal';
 import NotificationCenter from '@/components/NotificationCenter';
@@ -1170,6 +1171,9 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
 
       {/* Hata Bildirme Butonu */}
       <ReportButton visible={uiPrefs.showReportButton} />
+
+      {/* Quantum Link — Floating AI Panel */}
+      <QuantumLink db={db} />
 
       {/* AI Drawer */}
       <AIDrawer open={aiDrawerOpen} onClose={() => setAiDrawerOpen(false)} db={db} />

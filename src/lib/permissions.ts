@@ -84,12 +84,31 @@ export async function saveFileToDevice(filename: string, data: string, mimeType 
   }
 }
 
+// ── Push Notification İzni ────────────────────────────────────────────────────
+export async function requestPushPermission(): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return false;
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const perm = await PushNotifications.requestPermissions();
+    if (perm.receive === 'granted') {
+      await PushNotifications.register();
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 // ── Tüm İzinleri Başlangıçta İste ────────────────────────────────────────────
 export async function requestAllPermissions(): Promise<void> {
   // Bildirim izni
   await requestNotificationPermission().catch(() => {});
 
   if (!Capacitor.isNativePlatform()) return;
+
+  // Push notification izni
+  await requestPushPermission().catch(() => {});
 
   // Mikrofon izni (sesli AI asistan için)
   try {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { DB, Kasa, ProductCategory, RuleViolation } from '@/types';
 import { genId } from '@/lib/utils-tr';
 import { logger } from '@/lib/logger';
@@ -910,5 +910,66 @@ export function useDB() {
     return db.kasa.filter(k => !k.deleted).reduce((sum, k) => sum + (k.type === 'gelir' ? k.amount : -k.amount), 0);
   }, [db.kasa]);
 
-  return { db, save, saveWithLog, saveGuarded, logActivity, exportJSON, importJSON, getKasaBakiye, getTotalKasa, emitSync, manualBackup, listBackups, restoreBackup };
+  // ── Analytics (Gemini-style) ─────────────────────────────────────────────
+  const analytics = useMemo(() => {
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+
+    const activeSales = db.sales.filter(s => !s.deleted && s.status === 'tamamlandi');
+    const monthSales = activeSales.filter(s => new Date(s.createdAt) >= monthStart);
+    const lastMonthSales = activeSales.filter(s => {
+      const d = new Date(s.createdAt);
+      return d >= lastMonthStart && d <= lastMonthEnd;
+    });
+
+    const revenue = monthSales.reduce((s, x) => s + x.total, 0);
+    const profit = monthSales.reduce((s, x) => s + x.profit, 0);
+    const lastRevenue = lastMonthSales.reduce((s, x) => s + x.total, 0);
+    const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
+    const growth = lastRevenue > 0 ? ((revenue - lastRevenue) / lastRevenue) * 100 : null;
+
+    const kasaBalance = db.kasa.filter(k => !k.deleted).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const nakit = db.kasa.filter(k => !k.deleted && k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+    const banka = db.kasa.filter(k => !k.deleted && k.kasa === 'banka').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0);
+
+    const activeProducts = db.products.filter(p => !p.deleted);
+    const lowStockItems = activeProducts.filter(p => p.stock > 0 && p.stock <= (p.minStock || 5));
+    const outOfStockItems = activeProducts.filter(p => p.stock === 0);
+    const stockValue = activeProducts.reduce((s, p) => s + p.cost * p.stock, 0);
+
+    const totalReceivable = db.cari.filter(c => !c.deleted && c.type === 'musteri' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+    const totalPayable = db.cari.filter(c => !c.deleted && c.type === 'tedarikci' && c.balance > 0).reduce((s, c) => s + c.balance, 0);
+
+    // Top 5 ürün (bu ay ciro)
+    const productMap: Record<string, { name: string; ciro: number; adet: number; kar: number }> = {};
+    monthSales.forEach(s => {
+      if (!productMap[s.productId]) productMap[s.productId] = { name: s.productName, ciro: 0, adet: 0, kar: 0 };
+      productMap[s.productId].ciro += s.total;
+      productMap[s.productId].adet += s.quantity;
+      productMap[s.productId].kar += s.profit;
+    });
+    const topProducts = Object.values(productMap).sort((a, b) => b.ciro - a.ciro).slice(0, 5);
+
+    return {
+      revenue,
+      profit,
+      margin,
+      growth,
+      kasaBalance,
+      nakit,
+      banka,
+      lowStockItems,
+      outOfStockItems,
+      stockValue,
+      totalReceivable,
+      totalPayable,
+      topProducts,
+      monthSalesCount: monthSales.length,
+      lastRevenue,
+    };
+  }, [db.sales, db.kasa, db.products, db.cari]);
+
+  return { db, save, saveWithLog, saveGuarded, logActivity, exportJSON, importJSON, getKasaBakiye, getTotalKasa, emitSync, manualBackup, listBackups, restoreBackup, analytics };
 }

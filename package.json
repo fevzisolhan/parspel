@@ -1,6 +1,6 @@
 {
     "name": "parspel",
-    "version": "2.0.0",
+    "version": "2.9.0",
     "private": true,
     "type": "module",
     "scripts": {
@@ -9,7 +9,8 @@
         "preview": "vite preview",
         "test": "vitest",
         "test:run": "vitest --run",
-    "test:report": "vitest run --reporter=html --outputFile=test-report.html",
+    "test:report": "vitest run --reporter=html --outputFile=./test-report/index.html",
+    "test:report:open": "npx vite preview --outDir test-report --port 4174",
         "typecheck": "tsc --noEmit",
         "cap:build": "npm run build && npx cap sync",
         "cap:build:prod": "npm run build && npx cap sync --config capacitor.config.prod.json",
