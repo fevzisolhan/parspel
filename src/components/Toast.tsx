@@ -12,7 +12,13 @@ const soundTypeMap: Record<string, SoundType> = {
 const SPEECH_TYPES = new Set(['error', 'warning']);
 
 function cleanForSpeech(msg: string): string {
-  return msg.replace(/[✅❌⚠️🔔📦💰🛒🧾📊🔥🗑️✨💾🔒]/gu, '').trim();
+  // Emoji ve özel karakterleri temizle (variation selector içerenler ayrı)
+  return msg
+    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // genel emoji aralığı
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')    // çeşitli semboller
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')    // dingbats
+    .replace(/\uFE0F/g, '')                  // variation selector-16
+    .trim();
 }
 
 export function useToast() {

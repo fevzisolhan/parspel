@@ -381,7 +381,7 @@ function useDraggableButton(storageKey: string, defaultPos: { x: number; y: numb
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) return JSON.parse(raw);
-    } catch {}
+    } catch { /* localStorage okuma hatası */ }
     return defaultPos;
   });
   const dragging = useRef(false);
@@ -699,6 +699,18 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
     });
     return unsub;
   }, []);
+
+  // Son güncelleme toast'u — her versiyon için bir kez göster
+  useEffect(() => {
+    const LATEST_VERSION = '2.9.0';
+    const seenKey = `parspel_update_seen_${LATEST_VERSION}`;
+    if (!localStorage.getItem(seenKey)) {
+      setTimeout(() => {
+        showToast(`🚀 v${LATEST_VERSION} — Quantum Link AI panel, ESLint taraması, 14 kod hatası düzeltildi`, 'info');
+        localStorage.setItem(seenKey, '1');
+      }, 1500);
+    }
+  }, [showToast]);
 
   // İlk kurulum verisini DB'ye yaz (bir kez)
   useEffect(() => {

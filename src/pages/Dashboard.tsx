@@ -167,7 +167,7 @@ function loadDashboardPrefs(): { leftWidgets: WidgetId[]; brightness: number } {
   try {
     const raw = localStorage.getItem('dashboardPrefs');
     if (raw) return JSON.parse(raw);
-  } catch {}
+  } catch { /* localStorage okuma hatası */ }
   return { leftWidgets: ['chart', 'recentSales', 'tips', 'excelBar'], brightness: 100 };
 }
 
@@ -219,7 +219,7 @@ export default function Dashboard({ db, onTabChange, save }: Props) {
         localStorage.setItem('dashboardPrefs', JSON.stringify(fbPrefs));
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
   const [backupPanel, setBackupPanel] = useState(false);
   const [backups, setBackups] = useState<{ id: string; version: number; label: string; createdAt: string }[]>([]);
