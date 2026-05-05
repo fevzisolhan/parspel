@@ -928,6 +928,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
             </div>
           </div>
         )}
+        {loading && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>ğŸ¤–</div>
             <div style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.15)', borderRadius: 14, padding: '12px 18px' }}>
