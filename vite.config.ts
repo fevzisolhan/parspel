@@ -10,7 +10,7 @@ import { VitePWA } from "vite-plugin-pwa";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  base: "/",
+  base: process.env.NODE_ENV === 'production' ? '/parspel/' : '/',
   plugins: [
     react(),
     tailwindcss(),
