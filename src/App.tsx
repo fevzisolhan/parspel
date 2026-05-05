@@ -704,12 +704,14 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
   useEffect(() => {
     const LATEST_VERSION = '2.9.0';
     const seenKey = `parspel_update_seen_${LATEST_VERSION}`;
-    if (!localStorage.getItem(seenKey)) {
-      setTimeout(() => {
-        showToast(`🚀 v${LATEST_VERSION} — Quantum Link AI panel, ESLint taraması, 14 kod hatası düzeltildi`, 'info');
-        localStorage.setItem(seenKey, '1');
-      }, 1500);
-    }
+    try {
+      if (!localStorage.getItem(seenKey)) {
+        setTimeout(() => {
+          showToast(`🚀 v${LATEST_VERSION} — Quantum Link AI panel, ESLint taraması, 14 kod hatası düzeltildi`, 'info');
+          try { localStorage.setItem(seenKey, '1'); } catch { /* localStorage yazma hatası */ }
+        }, 1500);
+      }
+    } catch { /* localStorage okuma hatası */ }
   }, [showToast]);
 
   // İlk kurulum verisini DB'ye yaz (bir kez)
