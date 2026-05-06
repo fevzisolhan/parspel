@@ -22,6 +22,7 @@ import Fatura from '@/pages/Fatura';
 import Entegrasyonlar from '@/pages/Entegrasyonlar';
 import Butce from '@/pages/Butce';
 import KontrolHalkasi from '@/pages/KontrolHalkasi';
+import BugHunter from '@/pages/BugHunter';
 import Pelet from '@/pages/Pelet';
 import BoruTed from '@/pages/BoruTed';
 import ExcelMerge from '@/pages/ExcelMerge';
@@ -76,6 +77,7 @@ const TABS = [
   { id: 'stock', label: 'Stok', icon: '🔢', group: 'Analiz' },
   { id: 'monitor', label: 'İzleme', icon: '🔔', group: 'Analiz' },
   { id: 'kontrol', label: 'Kontrol', icon: '⚡', group: 'Analiz' },
+  { id: 'bughunter', label: 'Bug Hunter', icon: '🐛', group: 'Analiz' },
   { id: 'entegrasyon', label: 'Entegrasyon', icon: '🔗', group: 'Sistem' },
   { id: 'excelmerge', label: 'Veri Birleştir', icon: '📊', group: 'Sistem' },
   { id: 'notlar', label: 'Not Defteri', icon: '📝', group: 'Sistem' },
@@ -666,7 +668,7 @@ const GROUP_COLORS: Record<string, { text: string; bg: string; glow: string }> =
 };
 
 function AppContent({ onLogout, username }: { onLogout: () => void; username?: string }) {
-  const { db, save, saveWithLog, logActivity, exportJSON, importJSON } = useDB();
+  const { db, save, exportJSON, importJSON } = useDB();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
@@ -750,7 +752,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
       if (isOnline) {
         showToast('İnternet bağlantısı yeniden kuruldu', 'success');
       } else {
-        showToast('Çevrimdışı çalışıyorsunuz — veriler korunuyor', 'info' as any);
+        showToast('Çevrimdışı çalışıyorsunuz — veriler korunuyor', 'info');
       }
       prevOnline.current = isOnline;
     }
@@ -1169,6 +1171,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
           {activeTab === 'stock' && <Stock db={db} save={save} />}
           {activeTab === 'monitor' && <Monitor db={db} save={save} />}
           {activeTab === 'kontrol' && <KontrolHalkasi db={db} />}
+          {activeTab === 'bughunter' && <BugHunter />}
           {activeTab === 'entegrasyon' && <Entegrasyonlar db={db} />}
           {activeTab === 'excelmerge' && <ExcelMerge />}
           {activeTab === 'notlar' && <Notlar db={db} save={save} />}
