@@ -1173,7 +1173,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
           {activeTab === 'stock' && <Stock db={db} save={save} />}
           {activeTab === 'monitor' && <Monitor db={db} save={save} />}
           {activeTab === 'kontrol' && <KontrolHalkasi db={db} />}
-          {activeTab === 'bughunter' && <BugHunter />}
+          {activeTab === 'bughunter' && <BugHunter db={db} />}
           {activeTab === 'anomali' && <AnomaliOneri db={db} save={save} />}
           {activeTab === 'entegrasyon' && <Entegrasyonlar db={db} />}
           {activeTab === 'excelmerge' && <ExcelMerge />}

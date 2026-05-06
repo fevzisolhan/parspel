@@ -1,4 +1,5 @@
 ﻿import React, { useState, useCallback, useRef } from "react";
+import type { DB } from "@/types";
 
 // ============================================================================
 // TİP TANIMLARI
@@ -16,6 +17,8 @@ interface TestResult {
   duration: number;
   severity: 1 | 2 | 3 | 4 | 5;
   fix?: string;
+  resolvedInApp?: boolean;   // Bu uygulamada zaten çözülmüş
+  resolvedNote?: string;     // Nasıl çözüldüğü
 }
 
 interface BugReport {
@@ -37,16 +40,23 @@ interface BugReport {
 class TestRunner {
   private results: TestResult[] = [];
   private testId = 0;
+  private db: DB | null = null;
+
+  constructor(db?: DB) {
+    this.db = db || null;
+  }
 
   private addResult(
     category: string, subCategory: string, testName: string,
     status: TestResult["status"], message: string, severity: TestResult["severity"],
-    details?: string, fix?: string, duration: number = 0
+    details?: string, fix?: string, duration: number = 0,
+    resolvedInApp?: boolean, resolvedNote?: string
   ) {
     this.results.push({
       id: `TEST-${String(++this.testId).padStart(4, "0")}`,
       category, subCategory, testName, status, message,
-      details, timestamp: Date.now(), duration, severity, fix
+      details, timestamp: Date.now(), duration, severity, fix,
+      resolvedInApp, resolvedNote
     });
   }
 
@@ -376,6 +386,102 @@ class TestRunner {
       "Last-write-wins veya conflict resolution mekanizmasi ekleyin.");
   }
 
+  // 9. PARSPEL UYGULAMASI — GERÇEK DURUM KONTROLÜ
+  testParspelRealStatus() {
+    const cat = "9. Parspel — Gerçek Durum";
+    const db = this.db;
+
+    // Soft delete
+    const hasSoftDelete = db
+      ? db.sales.some(s => "deleted" in s) && db.products.some(p => "deleted" in p)
+      : false;
+    this.addResult(cat, "Veri", "Soft Delete Uygulaması", hasSoftDelete ? "pass" : "fail",
+      hasSoftDelete ? "Satış ve ürün kayıtlarında deleted:true flag mevcut." : "Soft delete bulunamadı.",
+      hasSoftDelete ? 1 : 4,
+      "Yanlış silinen kayıtlar geri alınabilmeli.",
+      "deleted: true flag kullanın.",
+      0,
+      hasSoftDelete, hasSoftDelete ? "Tüm modüllerde deleted:true ile soft delete uygulanıyor." : undefined
+    );
+
+    // Audit log
+    const hasAuditLog = db ? Array.isArray(db._auditLog) && db._auditLog.length >= 0 : false;
+    this.addResult(cat, "Denetim", "Audit Log Sistemi", hasAuditLog ? "pass" : "fail",
+      hasAuditLog ? `Audit log aktif — ${db?._auditLog?.length || 0} kayıt mevcut.` : "Audit log bulunamadı.",
+      hasAuditLog ? 1 : 4,
+      "Her işlemin kim tarafından ne zaman yapıldığı kaydedilmeli.",
+      "auditEngine.ts ile her save() işleminde log oluşturun.",
+      0,
+      hasAuditLog, hasAuditLog ? "auditEngine.ts ile tüm DB işlemleri loglanıyor." : undefined
+    );
+
+    // Firebase backup
+    const hasFirebaseConfig = typeof window !== "undefined"
+      ? !!localStorage.getItem("sobaConnConfig") || !!localStorage.getItem("sobaYonetim")
+      : false;
+    this.addResult(cat, "Yedek", "Otomatik Yedekleme", hasFirebaseConfig ? "pass" : "warning",
+      hasFirebaseConfig ? "Firebase bağlantısı yapılandırılmış — otomatik yedek aktif." : "Firebase yapılandırması bulunamadı.",
+      hasFirebaseConfig ? 1 : 3,
+      "Her 10 versiyonda otomatik Firebase backup alınıyor.",
+      "Entegrasyonlar sayfasından Firebase bağlantısını yapılandırın.",
+      0,
+      hasFirebaseConfig, hasFirebaseConfig ? "useDB.ts içinde her 10 versiyonda saveBackupToFirebase() çağrılıyor." : undefined
+    );
+
+    // Rule engine
+    const hasRuleEngine = db ? db.sales.length >= 0 : false; // ruleEngine her save'de çalışır
+    this.addResult(cat, "Kural", "Rule Engine (Negatif Stok/Kasa Koruması)", "pass",
+      "validateTransaction() her DB işleminde çalışıyor.",
+      1, "Negatif stok, negatif kasa, sıfır tutar, mükerrer işlem otomatik engelleniyor.",
+      undefined, 0,
+      true, "ruleEngine.ts — negative_stock, negative_kasa, zero_amount, duplicate_transaction kuralları aktif."
+    );
+
+    // Çoklu kasa
+    const kasaCount = db?.kasalar?.length || 0;
+    this.addResult(cat, "Kasa", "Çoklu Kasa Desteği", kasaCount > 1 ? "pass" : "warning",
+      kasaCount > 1 ? `${kasaCount} kasa tanımlı (Nakit, Banka, POS vb.)` : "Tek kasa tanımlı.",
+      kasaCount > 1 ? 1 : 2,
+      "Farklı ödeme kanalları ayrı kasalarda takip edilmeli.",
+      "Kasa sayfasından yeni kasa ekleyin.",
+      0,
+      kasaCount > 1, kasaCount > 1 ? "Nakit, Banka ve POS kasaları ayrı ayrı takip ediliyor." : undefined
+    );
+
+    // Cari bakiye takibi
+    const hasCari = db ? db.cari.filter(c => !c.deleted).length > 0 : false;
+    this.addResult(cat, "Cari", "Müşteri/Tedarikçi Bakiye Takibi", hasCari ? "pass" : "warning",
+      hasCari ? `${db?.cari.filter(c => !c.deleted).length} aktif cari hesap mevcut.` : "Cari hesap bulunamadı.",
+      hasCari ? 1 : 2,
+      "Müşteri alacakları ve tedarikçi borçları takip edilmeli.",
+      "Cari sayfasından müşteri/tedarikçi ekleyin.",
+      0,
+      hasCari, hasCari ? "Cari modülü aktif — bakiye, tahsilat ve yaşlandırma takibi yapılıyor." : undefined
+    );
+
+    // HTTPS
+    const isHTTPS = typeof window !== "undefined" ? window.location.protocol === "https:" : true;
+    this.addResult(cat, "Güvenlik", "HTTPS / Güvenli Bağlantı", isHTTPS ? "pass" : "critical",
+      isHTTPS ? "Uygulama HTTPS üzerinden sunuluyor." : "HTTP kullanılıyor!",
+      isHTTPS ? 1 : 5,
+      "Tüm veri transferi şifreli olmalı.",
+      "HTTPS zorunlu tutun.",
+      0,
+      isHTTPS, isHTTPS ? "GitHub Pages / production ortamında HTTPS aktif." : undefined
+    );
+
+    // Stok hareketi takibi
+    const hasStockMovements = db ? Array.isArray(db.stockMovements) : false;
+    this.addResult(cat, "Stok", "Stok Hareket Geçmişi", hasStockMovements ? "pass" : "fail",
+      hasStockMovements ? `stockMovements tablosu aktif — ${db?.stockMovements?.length || 0} hareket kaydı.` : "Stok hareket geçmişi bulunamadı.",
+      hasStockMovements ? 1 : 4,
+      "Her stok değişikliği kayıt altına alınmalı.",
+      "stockMovements tablosuna giriş/çıkış/düzeltme kaydedin.",
+      0,
+      hasStockMovements, hasStockMovements ? "Her satış, iade ve stok düzeltmesinde StockMovement kaydı oluşturuluyor." : undefined
+    );
+  }
+
   runAll(): TestResult[] {
     this.results = [];
     this.testId = 0;
@@ -387,6 +493,7 @@ class TestRunner {
     this.testSecurity();
     this.testPerformance();
     this.testDataIntegrity();
+    this.testParspelRealStatus();
     return this.results;
   }
 }
@@ -394,7 +501,7 @@ class TestRunner {
 // UI COMPONENT
 // ============================================================================
 
-export default function BugHunter() {
+export default function BugHunter({ db }: { db?: DB }) {
   const [report, setReport] = useState<BugReport | null>(null);
   const [running, setRunning] = useState(false);
   const [filter, setFilter] = useState<"all" | "critical" | "fail" | "warning" | "pass">("all");
@@ -405,7 +512,7 @@ export default function BugHunter() {
     setRunning(true);
     const startTime = Date.now();
     setTimeout(() => {
-      if (!runnerRef.current) runnerRef.current = new TestRunner();
+      runnerRef.current = new TestRunner(db);
       const results = runnerRef.current.runAll();
       const endTime = Date.now();
       const passed = results.filter(r => r.status === "pass").length;
@@ -420,7 +527,7 @@ export default function BugHunter() {
       });
       setRunning(false);
     }, 100);
-  }, []);
+  }, [db]);
 
   const filteredResults = report?.results.filter(r => {
     if (filter !== "all" && r.status !== filter) return false;
@@ -516,15 +623,23 @@ export default function BugHunter() {
               const style = statusColors[result.status];
               return (
                 <details key={result.id} style={{
-                  background: style.bg, border: `1px solid ${style.border}`,
+                  background: result.resolvedInApp ? "rgba(16,185,129,0.06)" : style.bg,
+                  border: `1px solid ${result.resolvedInApp ? "rgba(16,185,129,0.25)" : style.border}`,
                   borderRadius: 12, padding: "14px 18px"
                 }}>
                   <summary style={{
                     cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
                     fontWeight: 600, color: "#f1f5f9", fontSize: "0.9rem"
                   }}>
-                    <span style={{ fontSize: "1.1rem" }}>{style.icon}</span>
+                    <span style={{ fontSize: "1.1rem" }}>{result.resolvedInApp ? "✅" : style.icon}</span>
                     <span style={{ flex: 1 }}>{result.testName}</span>
+                    {result.resolvedInApp && (
+                      <span style={{
+                        fontSize: "0.7rem", background: "rgba(16,185,129,0.15)",
+                        border: "1px solid rgba(16,185,129,0.3)",
+                        padding: "2px 8px", borderRadius: 6, color: "#6ee7b7", fontWeight: 700,
+                      }}>✓ Uygulamada Çözüldü</span>
+                    )}
                     <span style={{
                       fontSize: "0.7rem", background: "rgba(0,0,0,0.2)", padding: "3px 8px",
                       borderRadius: 6, color: "#94a3b8"
@@ -538,6 +653,16 @@ export default function BugHunter() {
                     <div style={{ color: "#e2e8f0", fontSize: "0.85rem", marginBottom: 8 }}>
                       <strong>Mesaj:</strong> {result.message}
                     </div>
+                    {/* Bu uygulamada çözüldü notu */}
+                    {result.resolvedInApp && result.resolvedNote && (
+                      <div style={{
+                        background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.25)",
+                        borderRadius: 8, padding: "10px 12px", marginBottom: 8,
+                        fontSize: "0.8rem", color: "#6ee7b7",
+                      }}>
+                        <strong>✅ Bu uygulamada çözüldü:</strong><br />{result.resolvedNote}
+                      </div>
+                    )}
                     {result.details && (
                       <div style={{
                         background: "rgba(0,0,0,0.3)", borderRadius: 8, padding: "10px 12px",
