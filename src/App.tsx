@@ -23,6 +23,7 @@ import Entegrasyonlar from '@/pages/Entegrasyonlar';
 import Butce from '@/pages/Butce';
 import KontrolHalkasi from '@/pages/KontrolHalkasi';
 import BugHunter from '@/pages/BugHunter';
+import AnomaliOneri from '@/pages/AnomaliOneri';
 import Pelet from '@/pages/Pelet';
 import BoruTed from '@/pages/BoruTed';
 import ExcelMerge from '@/pages/ExcelMerge';
@@ -78,6 +79,7 @@ const TABS = [
   { id: 'monitor', label: 'İzleme', icon: '🔔', group: 'Analiz' },
   { id: 'kontrol', label: 'Kontrol', icon: '⚡', group: 'Analiz' },
   { id: 'bughunter', label: 'Bug Hunter', icon: '🐛', group: 'Analiz' },
+  { id: 'anomali', label: 'Anomali & Öneri', icon: '🔍', group: 'Analiz' },
   { id: 'entegrasyon', label: 'Entegrasyon', icon: '🔗', group: 'Sistem' },
   { id: 'excelmerge', label: 'Veri Birleştir', icon: '📊', group: 'Sistem' },
   { id: 'notlar', label: 'Not Defteri', icon: '📝', group: 'Sistem' },
@@ -1172,6 +1174,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
           {activeTab === 'monitor' && <Monitor db={db} save={save} />}
           {activeTab === 'kontrol' && <KontrolHalkasi db={db} />}
           {activeTab === 'bughunter' && <BugHunter />}
+          {activeTab === 'anomali' && <AnomaliOneri db={db} save={save} />}
           {activeTab === 'entegrasyon' && <Entegrasyonlar db={db} />}
           {activeTab === 'excelmerge' && <ExcelMerge />}
           {activeTab === 'notlar' && <Notlar db={db} save={save} />}
