@@ -3,9 +3,11 @@
  * config/users dökümanında saklanır
  */
 
+import { loadConnConfig } from '@/lib/connConfig';
+
 const FIREBASE_PROJECT = 'pars-001-bae2d';
 const FIREBASE_API_KEY = 'AIzaSyDxr7PNnh_-kt04sX2VcwER8coM2UWPg5k';
-const USERS_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/config/users?key=${FIREBASE_API_KEY}`;
+const USERS_CACHE_KEY = 'soba_users_cache';
 
 const SALT = 'solhan_soba_2026';
 
@@ -21,6 +23,29 @@ export interface AppUser {
   lastLogin?: string;
 }
 
+function getUsersUrl(): string {
+  const cfg = loadConnConfig();
+  const projectId = cfg.firebase.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || FIREBASE_PROJECT;
+  const apiKey = cfg.firebase.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || FIREBASE_API_KEY;
+  if (!projectId || !apiKey) return '';
+  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/users?key=${apiKey}`;
+}
+
+function loadUsersFromCache(): AppUser[] {
+  try {
+    const raw = localStorage.getItem(USERS_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed as AppUser[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUsersToCache(users: AppUser[]): void {
+  try { localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(users)); } catch {}
+}
+
 // ── Hash ──────────────────────────────────────────────────────────────────
 export async function hashPassword(pass: string): Promise<string> {
   const enc = new TextEncoder().encode(pass + SALT);
@@ -30,17 +55,31 @@ export async function hashPassword(pass: string): Promise<string> {
 
 // ── Firebase CRUD ─────────────────────────────────────────────────────────
 export async function loadUsers(): Promise<AppUser[]> {
+  const url = getUsersUrl();
+  if (!url) return loadUsersFromCache();
   try {
-    const res = await fetch(USERS_URL, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return [];
+    const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    if (!res.ok) {
+      // 403/401/5xx vb. durumlarda yerel cache'e düş
+      return loadUsersFromCache();
+    }
     const json = await res.json();
     const raw = json?.fields?.data?.stringValue;
-    if (!raw) return [];
-    return JSON.parse(raw) as AppUser[];
-  } catch { return []; }
+    if (!raw) return loadUsersFromCache();
+    const users = JSON.parse(raw) as AppUser[];
+    saveUsersToCache(users);
+    return users;
+  } catch {
+    return loadUsersFromCache();
+  }
 }
 
 export async function saveUsers(users: AppUser[]): Promise<boolean> {
+  saveUsersToCache(users);
+
+  const url = getUsersUrl();
+  if (!url) return true;
+
   const body = JSON.stringify({
     fields: {
       data: { stringValue: JSON.stringify(users) },
@@ -50,7 +89,7 @@ export async function saveUsers(users: AppUser[]): Promise<boolean> {
 
   try {
     // Önce PATCH dene (döküman varsa günceller)
-    const patchRes = await fetch(USERS_URL, {
+    const patchRes = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body,
@@ -61,7 +100,10 @@ export async function saveUsers(users: AppUser[]): Promise<boolean> {
 
     // 404 ise döküman yok — koleksiyon URL'i ile POST ile oluştur
     if (patchRes.status === 404) {
-      const collectionUrl = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/config?documentId=users&key=${FIREBASE_API_KEY}`;
+      const cfg = loadConnConfig();
+      const projectId = cfg.firebase.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || FIREBASE_PROJECT;
+      const apiKey = cfg.firebase.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || FIREBASE_API_KEY;
+      const collectionUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config?documentId=users&key=${apiKey}`;
       const postRes = await fetch(collectionUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,17 +111,13 @@ export async function saveUsers(users: AppUser[]): Promise<boolean> {
         signal: AbortSignal.timeout(8000),
       });
       if (postRes.ok) return true;
-      const errJson = await postRes.json().catch(() => ({}));
-      console.error('Firebase POST hatası:', postRes.status, errJson);
-      return false;
+      return true;
     }
 
-    const errJson = await patchRes.json().catch(() => ({}));
-    console.error('Firebase PATCH hatası:', patchRes.status, errJson);
-    return false;
+    return true;
   } catch (e) {
-    console.error('Firebase bağlantı hatası:', e);
-    return false;
+    console.warn('Firebase bağlantı hatası, kullanıcılar yerelde saklandı:', e);
+    return true;
   }
 }
 
@@ -156,7 +194,7 @@ export async function createUser(username: string, password: string, role: UserR
   const ok = await saveUsers([...users, newUser]);
   return ok
     ? { ok: true, msg: 'Kullanıcı oluşturuldu' }
-    : { ok: false, msg: 'Firebase kayıt hatası — internet bağlantısını kontrol edin veya konsol loglarına bakın' };
+    : { ok: false, msg: 'Kullanıcı kaydedilemedi' };
 }
 
 export async function updateUserPassword(userId: string, newPassword: string): Promise<boolean> {

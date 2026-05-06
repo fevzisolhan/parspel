@@ -83,7 +83,15 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: AppUser, reme
     setStatusMsg('Firebase\'e bağlanılıyor…');
     try {
       const users = await loadUsers();
-      if (users.length === 0) {
+      if (!navigator.onLine && users.length > 0) {
+        setFbStatus('ready');
+        setStatusMsg(`Çevrimdışı giriş modu — ${users.filter(u => u.active).length} yerel kullanıcı hazır`);
+        setSetupMode(false);
+      } else if (!navigator.onLine && users.length === 0) {
+        setFbStatus('error');
+        setStatusMsg('İnternet kapalı ve yerel kullanıcı bulunamadı');
+        setSetupMode(false);
+      } else if (users.length === 0) {
         setFbStatus('first-setup');
         setStatusMsg('İlk kurulum — yönetici hesabı oluşturun');
         setSetupMode(true);
@@ -192,7 +200,13 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: AppUser, reme
               {setupMode ? 'İlk Kurulum' : 'Solhan'}
             </h1>
             <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.82rem' }}>
-              {fbStatus === 'connecting' ? 'Bağlanılıyor…' : fbStatus === 'error' ? statusMsg : setupMode ? 'Yönetici hesabı oluşturun' : 'Kullanıcı adı ve şifrenizle giriş yapın'}
+              {fbStatus === 'connecting'
+                ? 'Bağlanılıyor…'
+                : fbStatus === 'error'
+                  ? statusMsg
+                  : setupMode
+                    ? 'Yönetici hesabı oluşturun'
+                    : 'Kullanıcı adı ve şifrenizle giriş yapın'}
             </p>
           </div>
 
@@ -207,12 +221,12 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: AppUser, reme
           {fbStatus === 'error' && (
             <div style={{ marginBottom: 20, padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12 }}>
               <div style={{ color: '#f87171', fontSize: '0.82rem', fontWeight: 600, marginBottom: 4 }}>⚠️ Bağlantı Hatası</div>
-              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem' }}>Firebase'e erişilemiyor. İnternet bağlantınızı kontrol edin.</div>
+              <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem' }}>Firebase'e erişilemiyor. Yerel kullanıcı yoksa internete bağlanıp bir kez giriş yapın.</div>
             </div>
           )}
 
           {/* Form */}
-          {(fbStatus === 'ready' || fbStatus === 'first-setup') && (
+          {(fbStatus === 'ready' || fbStatus === 'first-setup' || fbStatus === 'error') && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* Kullanıcı adı */}
               <div style={{ position: 'relative' }}>

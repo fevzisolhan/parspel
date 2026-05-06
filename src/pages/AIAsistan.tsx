@@ -3,6 +3,7 @@ import { formatMoney, genId } from '@/lib/utils-tr';
 import type { DB } from '@/types';
 import { loadConnConfig } from '@/lib/connConfig';
 import { useSpeechRecognition, useSpeechSynthesis } from '@/hooks/useSpeech';
+import { getUserSession } from '@/lib/userManager';
 
 type SaveFn = (updater: (prev: DB) => DB) => void;
 
@@ -10,7 +11,7 @@ interface Props { db: DB; save?: SaveFn; embedded?: boolean; }
 
 // â”€â”€ DB İşlem Tipleri â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface DBAction {
-  type: 'sale' | 'kasa_gelir' | 'kasa_gider' | 'stok_guncelle' | 'cari_tahsilat';
+  type: 'sale' | 'kasa_gelir' | 'kasa_gider' | 'stok_guncelle' | 'cari_tahsilat' | 'urun_ekle' | 'cari_ekle';
   label: string;       // kullanıcıya gösterilecek özet
   payload: Record<string, unknown>;
 }
@@ -32,6 +33,70 @@ function parseActions(text: string): DBAction[] {
 // AI yanıtından ACTION bloklarını temizle (chat'te gösterme)
 function stripActions(text: string): string {
   return text.replace(/```action\n[\s\S]*?```/g, '').trim();
+}
+
+function validateAction(prev: DB, action: DBAction): string | null {
+  const p = action.payload;
+
+  if (action.type === 'sale') {
+    const product = prev.products.find(pr => pr.id === p.productId || pr.name === p.productName);
+    if (!product) return `Ürün bulunamadı: ${String(p.productName || p.productId || '')}`;
+    const qty = Number(p.quantity);
+    const unitPrice = Number(p.unitPrice);
+    if (!Number.isFinite(qty) || qty <= 0) return 'Satış miktarı 0 dan büyük olmalı';
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return 'Birim fiyat negatif olamaz';
+    if (qty > product.stock) return `${product.name} için yetersiz stok (${product.stock})`;
+    return null;
+  }
+
+  if (action.type === 'kasa_gelir' || action.type === 'kasa_gider') {
+    const amount = Number(p.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return 'Kasa tutarı 0 dan büyük olmalı';
+    return null;
+  }
+
+  if (action.type === 'stok_guncelle') {
+    const product = prev.products.find(pr => pr.id === p.productId || pr.name === p.productName);
+    if (!product) return `Ürün bulunamadı: ${String(p.productName || p.productId || '')}`;
+    const stock = Number(p.stock);
+    if (!Number.isFinite(stock) || stock < 0) return 'Yeni stok negatif olamaz';
+    return null;
+  }
+
+  if (action.type === 'cari_tahsilat') {
+    const cari = prev.cari.find(c => c.id === p.cariId || c.name === p.cariName);
+    if (!cari) return `Cari bulunamadı: ${String(p.cariName || p.cariId || '')}`;
+    const amount = Number(p.amount);
+    if (!Number.isFinite(amount) || amount <= 0) return 'Tahsilat tutarı 0 dan büyük olmalı';
+    if (amount > cari.balance) return `Tahsilat müşteri bakiyesini aşıyor (${formatMoney(cari.balance)})`;
+    return null;
+  }
+
+  if (action.type === 'urun_ekle') {
+    const name = String(p.name || '').trim();
+    if (!name) return 'Ürün adı zorunlu';
+    const exists = prev.products.some(pr => !pr.deleted && pr.name.toLowerCase() === name.toLowerCase());
+    if (exists) return `Aynı isimde ürün zaten var: ${name}`;
+    const cost = Number(p.cost);
+    const price = Number(p.price);
+    const stock = Number(p.stock);
+    if (Number.isFinite(cost) && cost < 0) return 'Alış fiyatı negatif olamaz';
+    if (Number.isFinite(price) && price < 0) return 'Satış fiyatı negatif olamaz';
+    if (Number.isFinite(stock) && stock < 0) return 'Stok negatif olamaz';
+    return null;
+  }
+
+  if (action.type === 'cari_ekle') {
+    const name = String(p.name || '').trim();
+    if (!name) return 'Cari adı zorunlu';
+    const exists = prev.cari.some(c => !c.deleted && c.name.toLowerCase() === name.toLowerCase());
+    if (exists) return `Aynı isimde cari zaten var: ${name}`;
+    const balance = Number(p.balance);
+    if (Number.isFinite(balance) && balance < 0) return 'Başlangıç bakiyesi negatif olamaz';
+    return null;
+  }
+
+  return null;
 }
 
 // DB'ye işlemi uygula
@@ -144,6 +209,46 @@ function applyAction(prev: DB, action: DBAction): DB {
     };
   }
 
+  if (action.type === 'urun_ekle') {
+    const name = String(p.name || '').trim();
+    if (!name) throw new Error('Ürün adı zorunlu');
+    const exists = prev.products.some(pr => !pr.deleted && pr.name.toLowerCase() === name.toLowerCase());
+    if (exists) throw new Error(`Aynı isimde ürün zaten var: ${name}`);
+    const product = {
+      id: genId(),
+      name,
+      category: String(p.category || 'soba'),
+      brand: String(p.brand || ''),
+      cost: Number(p.cost) || 0,
+      price: Number(p.price) || 0,
+      stock: Number(p.stock) || 0,
+      minStock: Number(p.minStock) || 5,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return { ...prev, products: [...prev.products, product] };
+  }
+
+  if (action.type === 'cari_ekle') {
+    const name = String(p.name || '').trim();
+    if (!name) throw new Error('Cari adı zorunlu');
+    const exists = prev.cari.some(c => !c.deleted && c.name.toLowerCase() === name.toLowerCase());
+    if (exists) throw new Error(`Aynı isimde cari zaten var: ${name}`);
+    const cari = {
+      id: genId(),
+      name,
+      type: (p.type === 'tedarikci' ? 'tedarikci' : 'musteri') as 'musteri' | 'tedarikci',
+      taxNo: String(p.taxNo || ''),
+      phone: String(p.phone || ''),
+      email: String(p.email || ''),
+      address: String(p.address || ''),
+      balance: Number(p.balance) || 0,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return { ...prev, cari: [...prev.cari, cari] };
+  }
+
   return prev;
 }
 interface Message { role: 'user' | 'assistant'; content: string; source?: 'claude' | 'gemini' | 'offline'; }
@@ -157,18 +262,22 @@ function getAiKeysUrl(): string {
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/aikeys?key=${apiKey}`;
 }
 
-async function loadKeysFromFirebase(): Promise<{ claude: string; gemini: string }> {
+async function loadKeysFromFirebase(): Promise<{ claude: string; gemini: string; state: 'ok' | 'forbidden' | 'unavailable' | 'missing-config' }> {
   const url = getAiKeysUrl();
-  if (!url) return { claude: '', gemini: '' };
+  if (!url) return { claude: '', gemini: '', state: 'missing-config' };
   try {
     const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return { claude: '', gemini: '' };
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) return { claude: '', gemini: '', state: 'forbidden' };
+      return { claude: '', gemini: '', state: 'unavailable' };
+    }
     const json = await res.json();
     return {
       claude: json?.fields?.claude?.stringValue || '',
       gemini: json?.fields?.gemini?.stringValue || '',
+      state: 'ok',
     };
-  } catch { return { claude: '', gemini: '' }; }
+  } catch { return { claude: '', gemini: '', state: 'unavailable' }; }
 }
 
 async function saveKeysToFirebase(claude: string, gemini: string): Promise<boolean> {
@@ -194,23 +303,23 @@ async function saveKeysToFirebase(claude: string, gemini: string): Promise<boole
 // Oturum cache â€” sekme kapanınca silinir, localStorage'a yazılmaz
 const _keyCache: { claude: string; gemini: string; loaded: boolean } = { claude: '', gemini: '', loaded: false };
 
-async function getKeys(): Promise<{ claude: string; gemini: string }> {
+async function getKeys(): Promise<{ claude: string; gemini: string; state: 'ok' | 'forbidden' | 'unavailable' | 'missing-config' | 'env' }> {
   // .env'de key varsa her zaman önce onu kullan, cache'e gerek yok
   const envClaude = import.meta.env.VITE_CLAUDE_API_KEY || '';
   const envGemini = import.meta.env.VITE_GEMINI_API_KEY || '';
   if (envClaude || envGemini) {
-    return { claude: envClaude, gemini: envGemini };
+    return { claude: envClaude, gemini: envGemini, state: 'env' };
   }
   // .env'de yoksa Firebase'den al (cache ile)
   if (_keyCache.loaded && !_keyCache.claude && !_keyCache.gemini) {
     _keyCache.loaded = false;
   }
-  if (_keyCache.loaded) return { claude: _keyCache.claude, gemini: _keyCache.gemini };
+  if (_keyCache.loaded) return { claude: _keyCache.claude, gemini: _keyCache.gemini, state: 'ok' };
   const keys = await loadKeysFromFirebase();
   _keyCache.claude = keys.claude;
   _keyCache.gemini = keys.gemini;
   _keyCache.loaded = true;
-  return { claude: _keyCache.claude, gemini: _keyCache.gemini };
+  return { claude: _keyCache.claude, gemini: _keyCache.gemini, state: keys.state };
 }
 
 function invalidateKeyCache() {
@@ -341,7 +450,7 @@ async function askGemini(messages: Message[], context: string, key: string, onCh
   }
 }
 
-function buildContext(db: DB): string {
+function buildContext(db: DB, actionMode: 'read-only' | 'manual' | 'auto', maxAutoActions: number, stopOnViolation: boolean): string {
   const today = new Date();
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -442,6 +551,10 @@ ${Object.entries(monthlyTrend).map(([m,v])=>`${m}: ${formatMoney(v)}`).join(' | 
 
 ---
 ## ğŸ› ï¸ DB İÅLEM TALİMATLARI
+Aktif işlem modu: ${actionMode === 'read-only' ? 'READ_ONLY (sadece analiz)' : actionMode === 'auto' ? 'AUTO_EXECUTE (otomatik)' : 'MANUAL_APPROVAL (onaylı)'}
+${actionMode === 'read-only' ? 'READ_ONLY modundasın. Kesinlikle action bloğu üretme, sadece analiz ve öneri ver.' : 'İşlem gerekiyorsa action bloğu üretebilirsin.'}
+AUTO mod aktifse tek yanıtta en fazla ${maxAutoActions} action üret.
+Kural ihlali davranışı: ${stopOnViolation ? 'İhlalde durdur' : 'İhlalli actionı atla ve devam et'}.
 Kullanıcı bir işlem yapmak istediğinde (satış, kasa, stok, tahsilat), yanıtının SONUNA aşağıdaki formatta bir action bloğu ekle.
 Sadece kullanıcı açıkça bir işlem yapmak istediğinde ekle â€” analiz/soru sorularında EKLEME.
 
@@ -468,6 +581,16 @@ Sadece kullanıcı açıkça bir işlem yapmak istediğinde ekle â€” analiz
 ### Cari tahsilat:
 \`\`\`action
 {"type":"cari_tahsilat","label":"[müşteri adı] â€” [tutar] TL tahsilat","payload":{"cariName":"[müşteri adı]","amount":[tutar],"kasa":"nakit"}}
+\`\`\`
+
+### Yeni ürün ekleme:
+\`\`\`action
+{"type":"urun_ekle","label":"[ürün adı] eklenecek","payload":{"name":"[ürün adı]","category":"soba","cost":[alış],"price":[satış],"stock":[stok],"minStock":[min stok]}}
+\`\`\`
+
+### Yeni cari ekleme:
+\`\`\`action
+{"type":"cari_ekle","label":"[cari adı] eklenecek","payload":{"name":"[cari adı]","type":"musteri","phone":"[telefon]","balance":0}}
 \`\`\`
 
 ### Mevcut ürünler (satış için kullan):
@@ -559,6 +682,8 @@ function ApiSettings({ onClose }: { onClose: () => void }) {
 }
 
 export default function AIAsistan({ db, save, embedded = false }: Props) {
+  const session = getUserSession();
+  const isAdminUser = session?.role === 'admin';
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -566,11 +691,75 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
   const [showSettings, setShowSettings] = useState(false);
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
   const [autoSpeak, setAutoSpeak] = useState(false);
+  const [adminMode, setAdminMode] = useState(false);
+  const [autoApplyActions, setAutoApplyActions] = useState(false);
+  const [maxAutoActions, setMaxAutoActions] = useState(3);
+  const [stopOnViolation, setStopOnViolation] = useState(true);
   // Onay bekleyen DB işlemleri
   const [pendingActions, setPendingActions] = useState<{ msgIdx: number; actions: DBAction[] } | null>(null);
   const [actionResult, setActionResult] = useState<{ msgIdx: number; success: boolean; msg: string } | null>(null);
-  const context = buildContext(db);
+  const actionMode: 'read-only' | 'manual' | 'auto' = !isAdminUser || !adminMode ? 'read-only' : autoApplyActions ? 'auto' : 'manual';
+  const context = buildContext(db, actionMode, maxAutoActions, stopOnViolation);
   const chatRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isAdminUser) {
+      setAdminMode(false);
+      setAutoApplyActions(false);
+      setStopOnViolation(true);
+    }
+  }, [isAdminUser]);
+
+  const runActions = useCallback((msgIdx: number, actions: DBAction[]) => {
+    if (!save) return;
+    try {
+      let summary = '';
+      save(prev => {
+        let next = prev;
+        let appliedCount = 0;
+        const violations: string[] = [];
+        const actionLimit = autoApplyActions ? Math.max(1, maxAutoActions) : Number.MAX_SAFE_INTEGER;
+
+        for (let i = 0; i < actions.length; i++) {
+          if (appliedCount >= actionLimit) {
+            violations.push(`Limit aşıldı: maksimum ${actionLimit} işlem`);
+            break;
+          }
+          const action = actions[i];
+          const violation = validateAction(next, action);
+          if (violation) {
+            violations.push(`${action.label}: ${violation}`);
+            if (stopOnViolation) break;
+            continue;
+          }
+          next = applyAction(next, action);
+          appliedCount += 1;
+        }
+
+        const aiLog = {
+          id: genId(),
+          action: autoApplyActions ? 'ai_auto_action' : 'ai_manual_action',
+          detail: [
+            `Uygulanan:${appliedCount}`,
+            `Toplam:${actions.length}`,
+            actions.map(a => a.label).join(' | '),
+            violations.length ? `İhlal:${violations.join(' ; ')}` : '',
+          ].filter(Boolean).join(' || '),
+          time: new Date().toISOString(),
+        };
+        summary = violations.length
+          ? `${appliedCount}/${actions.length} işlendi. ${violations.length} kural ihlali var.`
+          : autoApplyActions
+            ? `${appliedCount} işlem otomatik işlendi`
+            : 'Kaydedildi!';
+        return { ...next, _activityLog: [...(next._activityLog || []), aiLog] };
+      });
+      setActionResult({ msgIdx, success: true, msg: summary || 'Kaydedildi!' });
+      setTimeout(() => { setPendingActions(null); setActionResult(null); }, 1200);
+    } catch (err: any) {
+      setActionResult({ msgIdx, success: false, msg: err.message || 'Hata oluştu' });
+    }
+  }, [save, autoApplyActions, maxAutoActions, stopOnViolation]);
 
   // Sesli özellikler
   const { speaking, speak, stop: stopSpeak } = useSpeechSynthesis();
@@ -585,6 +774,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
   const [keysLoaded, setKeysLoaded] = useState(false);
   const [hasKeys, setHasKeys] = useState(false);
   const [keyLoadError, setKeyLoadError] = useState(false);
+  const [keyAccessForbidden, setKeyAccessForbidden] = useState(false);
   const keysRef = useRef({ claude: '', gemini: '' });
 
   useEffect(() => {
@@ -592,10 +782,12 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
       keysRef.current = keys;
       const loaded = !!(keys.claude || keys.gemini);
       setHasKeys(loaded);
-      setKeyLoadError(!loaded); // anahtarlar yüklenemedi ise true
+      setKeyAccessForbidden(keys.state === 'forbidden');
+      setKeyLoadError(keys.state === 'unavailable');
       setKeysLoaded(true);
     }).catch(() => {
       setKeyLoadError(true);
+      setKeyAccessForbidden(false);
       setKeysLoaded(true);
     });
   }, []);
@@ -659,7 +851,15 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
       if (autoSpeak) speak(reply);
       // offline modda da action parse et
       const actions = parseActions(reply);
-      if (actions.length > 0 && save) setPendingActions({ msgIdx: newMessages.length, actions });
+      if (actions.length > 0 && save) {
+        if (!isAdminUser || !adminMode) {
+          setMessages(prev => [...prev, { role: 'assistant', content: 'âš ï¸ Action üretildi ancak Yönetici Modu kapalı olduğu için DB yazma yapılmadı.', source: 'offline' }]);
+        } else if (autoApplyActions) {
+          runActions(newMessages.length, actions);
+        } else {
+          setPendingActions({ msgIdx: newMessages.length, actions });
+        }
+      }
       setApiStatus('offline'); setLoading(false); return;
     }
 
@@ -683,7 +883,13 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
         const updated = [...prev];
         updated[msgIndex] = { ...msg, content: cleaned };
         if (actions.length > 0 && save) {
-          setPendingActions({ msgIdx: msgIndex, actions });
+          if (!isAdminUser || !adminMode) {
+            updated.push({ role: 'assistant', content: 'âš ï¸ Action üretildi ancak Yönetici Modu kapalı olduğu için DB yazma yapılmadı.', source: 'offline' });
+          } else if (autoApplyActions) {
+            setTimeout(() => runActions(msgIndex, actions), 0);
+          } else {
+            setPendingActions({ msgIdx: msgIndex, actions });
+          }
         }
         return updated;
       });
@@ -741,7 +947,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
     if (autoSpeak) speak(reply);
     setApiStatus('offline');
     setLoading(false);
-  }, [input, loading, messages, context, db, autoSpeak, speak, isOnline]);
+  }, [input, loading, messages, context, db, autoSpeak, speak, isOnline, isAdminUser, adminMode, autoApplyActions, runActions, save]);
 
   // Sesli girişten çağrılabilmesi için ayrı ref
   const sendText = useCallback((text: string) => {
@@ -778,6 +984,8 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
                 ? 'ğŸ”Œ Çevrimdışı â€” temel sorulara yanıt verir'
                 : hasKeys
                   ? `âœ… ${keysRef.current.claude ? 'Claude' : ''}${keysRef.current.claude && keysRef.current.gemini ? ' + ' : ''}${keysRef.current.gemini ? 'Gemini' : ''} hazır`
+                  : keyAccessForbidden
+                    ? 'ℹ️ Firebase anahtar erişimi kısıtlı (403) — yerel/env anahtar kullanın'
                   : keyLoadError
                     ? 'âš ï¸ Anahtarlar yüklenemedi â€” âš™ï¸ ayarlara girin'
                     : 'âš ï¸ API anahtarı girilmemiş â€” âš™ï¸ ayarlara girin'}
@@ -797,6 +1005,32 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            {isAdminUser && (
+              <button onClick={() => setAdminMode(v => !v)} title="Yönetici DB Yazma Modu"
+                style={{ background: adminMode ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${adminMode ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 8, color: adminMode ? '#10b981' : '#475569', padding: '7px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                {adminMode ? 'ADMIN ON' : 'ADMIN OFF'}
+              </button>
+            )}
+            {isAdminUser && adminMode && (
+              <button onClick={() => setAutoApplyActions(v => !v)} title="Actionları otomatik uygula"
+                style={{ background: autoApplyActions ? 'rgba(245,158,11,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${autoApplyActions ? 'rgba(245,158,11,0.45)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 8, color: autoApplyActions ? '#f59e0b' : '#475569', padding: '7px 10px', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700 }}>
+                {autoApplyActions ? 'AUTO APPLY' : 'MANUAL APPLY'}
+              </button>
+            )}
+            {isAdminUser && adminMode && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.25)', background: 'rgba(15,23,42,0.35)' }}>
+                <span style={{ color: '#94a3b8', fontSize: '0.72rem', fontWeight: 700 }}>MAX</span>
+                <button onClick={() => setMaxAutoActions(v => Math.max(1, v - 1))} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 6, color: '#cbd5e1', width: 20, height: 20, cursor: 'pointer', fontWeight: 700, lineHeight: '20px' }}>-</button>
+                <span style={{ minWidth: 16, textAlign: 'center', color: '#f1f5f9', fontSize: '0.76rem', fontWeight: 700 }}>{maxAutoActions}</span>
+                <button onClick={() => setMaxAutoActions(v => Math.min(20, v + 1))} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 6, color: '#cbd5e1', width: 20, height: 20, cursor: 'pointer', fontWeight: 700, lineHeight: '20px' }}>+</button>
+              </div>
+            )}
+            {isAdminUser && adminMode && (
+              <button onClick={() => setStopOnViolation(v => !v)} title="Kural ihlalinde davranış"
+                style={{ background: stopOnViolation ? 'rgba(239,68,68,0.16)' : 'rgba(16,185,129,0.14)', border: `1px solid ${stopOnViolation ? 'rgba(239,68,68,0.45)' : 'rgba(16,185,129,0.45)'}`, borderRadius: 8, color: stopOnViolation ? '#f87171' : '#34d399', padding: '7px 8px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>
+                {stopOnViolation ? 'VIOLATION STOP' : 'VIOLATION SKIP'}
+              </button>
+            )}
             {messages.length > 0 && (
               <button onClick={() => setMessages([])} title="Sohbeti Temizle" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 8, color: '#475569', padding: '7px 12px', cursor: 'pointer', fontSize: '0.82rem' }}>ğŸ—‘ï¸</button>
             )}
@@ -820,6 +1054,22 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
               </div>
             ))}
           </div>
+          {isAdminUser && (
+            <button onClick={() => setAdminMode(v => !v)} title="Yönetici DB Yazma Modu" style={{ background: adminMode ? 'rgba(16,185,129,0.18)' : 'rgba(99,102,241,0.1)', border: `1px solid ${adminMode ? 'rgba(16,185,129,0.45)' : 'rgba(99,102,241,0.2)'}`, borderRadius: 8, color: adminMode ? '#10b981' : '#818cf8', padding: '6px 8px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>{adminMode ? 'ADMIN' : 'READ'}</button>
+          )}
+          {isAdminUser && adminMode && (
+            <button onClick={() => setAutoApplyActions(v => !v)} title="Actionları otomatik uygula" style={{ background: autoApplyActions ? 'rgba(245,158,11,0.18)' : 'rgba(99,102,241,0.1)', border: `1px solid ${autoApplyActions ? 'rgba(245,158,11,0.45)' : 'rgba(99,102,241,0.2)'}`, borderRadius: 8, color: autoApplyActions ? '#f59e0b' : '#818cf8', padding: '6px 8px', cursor: 'pointer', fontSize: '0.72rem', fontWeight: 700 }}>{autoApplyActions ? 'AUTO' : 'MANUAL'}</button>
+          )}
+          {isAdminUser && adminMode && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 6px', borderRadius: 8, border: '1px solid rgba(148,163,184,0.2)', background: 'rgba(15,23,42,0.3)' }}>
+              <button onClick={() => setMaxAutoActions(v => Math.max(1, v - 1))} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#cbd5e1', width: 16, height: 16, cursor: 'pointer', fontWeight: 700, lineHeight: '16px', fontSize: '0.65rem' }}>-</button>
+              <span style={{ color: '#f1f5f9', fontSize: '0.65rem', minWidth: 12, textAlign: 'center' }}>{maxAutoActions}</span>
+              <button onClick={() => setMaxAutoActions(v => Math.min(20, v + 1))} style={{ background: 'rgba(255,255,255,0.06)', border: 'none', borderRadius: 5, color: '#cbd5e1', width: 16, height: 16, cursor: 'pointer', fontWeight: 700, lineHeight: '16px', fontSize: '0.65rem' }}>+</button>
+            </div>
+          )}
+          {isAdminUser && adminMode && (
+            <button onClick={() => setStopOnViolation(v => !v)} title="Kural ihlalinde davranış" style={{ background: stopOnViolation ? 'rgba(239,68,68,0.16)' : 'rgba(16,185,129,0.14)', border: `1px solid ${stopOnViolation ? 'rgba(239,68,68,0.45)' : 'rgba(16,185,129,0.45)'}`, borderRadius: 8, color: stopOnViolation ? '#f87171' : '#34d399', padding: '6px 8px', cursor: 'pointer', fontSize: '0.62rem', fontWeight: 700 }}>{stopOnViolation ? 'STOP' : 'SKIP'}</button>
+          )}
           <button onClick={() => setShowSettings(s => !s)} style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 8, color: '#818cf8', padding: '6px 10px', cursor: 'pointer', fontSize: '0.85rem' }}>âš™ï¸</button>
           {messages.length > 0 && <button onClick={() => setMessages([])} style={{ background: 'rgba(255,255,255,0.04)', border: 'none', borderRadius: 8, color: '#475569', padding: '6px 10px', cursor: 'pointer', fontSize: '0.85rem' }}>ğŸ—‘ï¸</button>}
         </div>
@@ -903,22 +1153,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
             )}
             <div style={{ display: 'flex', gap: 8 }}>
               <button
-                onClick={() => {
-                  if (!save) return;
-                  try {
-                    save(prev => {
-                      let next = prev;
-                      for (const action of pendingActions.actions) {
-                        next = applyAction(next, action);
-                      }
-                      return next;
-                    });
-                    setActionResult({ msgIdx: pendingActions.msgIdx, success: true, msg: 'Kaydedildi!' });
-                    setTimeout(() => { setPendingActions(null); setActionResult(null); }, 1500);
-                  } catch (err: any) {
-                    setActionResult({ msgIdx: pendingActions.msgIdx, success: false, msg: err.message || 'Hata oluştu' });
-                  }
-                }}
+                onClick={() => runActions(pendingActions.msgIdx, pendingActions.actions)}
                 style={{ flex: 1, background: 'linear-gradient(135deg,#059669,#10b981)', border: 'none', borderRadius: 9, color: '#fff', padding: '9px 0', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}
               >âœ… Onayla & Kaydet</button>
               <button

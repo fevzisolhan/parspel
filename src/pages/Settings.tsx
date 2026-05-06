@@ -10,7 +10,7 @@ import { formatDate } from '@/lib/utils-tr';
 import { hashPassword as hashPass } from '@/lib/userManager';
 import { loadUsers, saveUsers, createUser, updateUserPassword, toggleUserActive, deleteUser, updateUserRole, getUserSession, type AppUser, type UserRole } from '@/lib/userManager';
 import { loadUIPrefs, saveUIPrefs, applyUIPrefs, THEMES, DEFAULT_PREFS, type UIPrefs } from '@/hooks/useUIPrefs';
-import { loadConnConfig, saveConnConfig, testFirebase, testSupabase, DEFAULT_CONN, type ConnConfig } from '@/lib/connConfig';
+import { loadConnConfig, saveConnConfig, testFirebase, testSupabase, getFirebaseDocUrl, DEFAULT_CONN, type ConnConfig } from '@/lib/connConfig';
 import { saveBackupToFirebase } from '@/hooks/useDB';
 import { mergeRestoreDB, type RestoreReport } from '@/hooks/useDB';
 import { SystemMap } from '@/components/SystemMap';
@@ -20,11 +20,20 @@ import { loadAppConfig, saveAppConfig, validateVersion, APP_NAME, APP_SUBTITLE }
 // Firebase auth config (parola Settings'ten de değiştirilebilir)
 const FIREBASE_PROJECT = 'pars-001-bae2d';
 const FIREBASE_API_KEY = 'AIzaSyDxr7PNnh_-kt04sX2VcwER8coM2UWPg5k';
-const FIREBASE_AUTH_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/config/auth?key=${FIREBASE_API_KEY}`;
+
+function getFirebaseAuthUrl(): string {
+  const cfg = loadConnConfig();
+  const projectId = cfg.firebase.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || FIREBASE_PROJECT;
+  const apiKey = cfg.firebase.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || FIREBASE_API_KEY;
+  if (!projectId || !apiKey) return '';
+  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/auth?key=${apiKey}`;
+}
 
 async function fetchCurrentHash(): Promise<string | null> {
+  const url = getFirebaseAuthUrl();
+  if (!url) return null;
   try {
-    const res = await fetch(FIREBASE_AUTH_URL, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
+    const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const json = await res.json();
     return json?.fields?.hash?.stringValue ?? null;
@@ -32,8 +41,10 @@ async function fetchCurrentHash(): Promise<string | null> {
 }
 
 async function updateHashInFirebase(hash: string): Promise<boolean> {
+  const url = getFirebaseAuthUrl();
+  if (!url) return false;
   try {
-    const res = await fetch(FIREBASE_AUTH_URL, {
+    const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: { hash: { stringValue: hash }, updatedAt: { stringValue: new Date().toISOString() } } }),
@@ -1971,10 +1982,20 @@ function BaglantiAyarlari({ cfg, onChange, showToast }: {
   onChange: (c: ConnConfig) => void;
   showToast: (m: string, t?: string) => void;
 }) {
+  type EndpointDiag = {
+    key: string;
+    label: string;
+    status: 'ok' | 'warn' | 'error';
+    http: string;
+    detail: string;
+  };
+
   const [fbTest, setFbTest] = useState<{ ok: boolean; msg: string } | null>(null);
   const [fbTesting, setFbTesting] = useState(false);
   const [sbTest, setSbTest] = useState<{ ok: boolean; msg: string } | null>(null);
   const [sbTesting, setSbTesting] = useState(false);
+  const [diagTesting, setDiagTesting] = useState(false);
+  const [diagRows, setDiagRows] = useState<EndpointDiag[]>([]);
 
   const setFb = (patch: Partial<typeof cfg.firebase>) =>
     onChange({ ...cfg, firebase: { ...cfg.firebase, ...patch } });
@@ -2000,6 +2021,65 @@ function BaglantiAyarlari({ cfg, onChange, showToast }: {
   const handleSave = () => {
     saveConnConfig(cfg);
     showToast('Bağlantı ayarları kaydedildi! Sayfa yenilendiğinde aktif olur.', 'success');
+  };
+
+  const classifyHttp = (status: number): { status: 'ok' | 'warn' | 'error'; detail: string } => {
+    if (status === 200 || status === 404) return { status: 'ok', detail: 'Erişim başarılı' };
+    if (status === 401) return { status: 'error', detail: '401 Yetkisiz — API key geçersiz olabilir' };
+    if (status === 403) return { status: 'error', detail: '403 Yasak — Firestore kuralı veya API key kısıtı' };
+    if (status >= 500) return { status: 'warn', detail: `Sunucu hatası (${status})` };
+    return { status: 'warn', detail: `Beklenmeyen HTTP ${status}` };
+  };
+
+  const fetchDiag = async (label: string, url: string): Promise<EndpointDiag> => {
+    if (!url) {
+      return { key: label, label, status: 'error', http: '-', detail: 'URL üretilemedi (config eksik)' };
+    }
+    try {
+      const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(8000) });
+      const c = classifyHttp(res.status);
+      return { key: label, label, status: c.status, http: String(res.status), detail: c.detail };
+    } catch (e) {
+      return {
+        key: label,
+        label,
+        status: 'error',
+        http: 'NET',
+        detail: navigator.onLine ? `Ağ hatası: ${String(e).slice(0, 60)}` : 'İnternet kapalı',
+      };
+    }
+  };
+
+  const handleRunDiagnostics = async () => {
+    const projectId = cfg.firebase.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || FIREBASE_PROJECT;
+    const apiKey = cfg.firebase.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || FIREBASE_API_KEY;
+    const authUrl = projectId && apiKey
+      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/auth?key=${apiKey}`
+      : '';
+    const usersUrl = projectId && apiKey
+      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/users?key=${apiKey}`
+      : '';
+    const aiKeysUrl = projectId && apiKey
+      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/aikeys?key=${apiKey}`
+      : '';
+    const connUrl = projectId && apiKey
+      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/connConfig?key=${apiKey}`
+      : '';
+
+    setDiagTesting(true);
+    setDiagRows([]);
+    const rows = await Promise.all([
+      fetchDiag('syncDoc', getFirebaseDocUrl(cfg.firebase)),
+      fetchDiag('users', usersUrl),
+      fetchDiag('auth', authUrl),
+      fetchDiag('aikeys', aiKeysUrl),
+      fetchDiag('connConfig', connUrl),
+    ]);
+    setDiagRows(rows);
+    setDiagTesting(false);
+
+    const hasBlocking = rows.some(r => r.status === 'error');
+    showToast(hasBlocking ? 'Tanı tamamlandı: kritik bağlantı hataları var' : 'Tanı tamamlandı: kritik hata yok', hasBlocking ? 'error' : 'success');
   };
 
   const handleReset = () => {
@@ -2143,6 +2223,34 @@ function BaglantiAyarlari({ cfg, onChange, showToast }: {
           {fbTest && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', color: fbTest.ok ? '#10b981' : '#ef4444', fontWeight: 600 }}>
               {fbTest.ok ? '✅' : '❌'} {fbTest.msg}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(15,23,42,0.35)', border: '1px solid rgba(148,163,184,0.18)', borderRadius: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ fontSize: '0.95rem' }}>🩺</span>
+            <div style={{ color: '#cbd5e1', fontWeight: 700, fontSize: '0.83rem' }}>Bağlantı Tanı Paneli</div>
+            <button
+              onClick={handleRunDiagnostics}
+              disabled={diagTesting || !cfg.firebase.projectId || !cfg.firebase.apiKey}
+              style={{ marginLeft: 'auto', padding: '7px 12px', background: 'rgba(99,102,241,0.14)', border: '1px solid rgba(99,102,241,0.28)', borderRadius: 8, color: '#a5b4fc', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer', opacity: (!cfg.firebase.projectId || !cfg.firebase.apiKey) ? 0.45 : 1 }}
+            >
+              {diagTesting ? 'Çalışıyor...' : 'Detaylı Tanı Çalıştır'}
+            </button>
+          </div>
+
+          {diagRows.length === 0 ? (
+            <div style={{ color: '#64748b', fontSize: '0.76rem' }}>Her endpoint için HTTP sonucu görmek için tanı çalıştırın.</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 7 }}>
+              {diagRows.map(r => (
+                <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '120px 64px 1fr', gap: 8, alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '7px 9px', border: `1px solid ${r.status === 'ok' ? 'rgba(16,185,129,0.25)' : r.status === 'warn' ? 'rgba(245,158,11,0.25)' : 'rgba(239,68,68,0.25)'}` }}>
+                  <div style={{ color: '#e2e8f0', fontSize: '0.74rem', fontWeight: 700 }}>{r.label}</div>
+                  <div style={{ color: r.status === 'ok' ? '#10b981' : r.status === 'warn' ? '#f59e0b' : '#ef4444', fontSize: '0.74rem', fontWeight: 800 }}>HTTP {r.http}</div>
+                  <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>{r.detail}</div>
+                </div>
+              ))}
             </div>
           )}
         </div>

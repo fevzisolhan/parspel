@@ -106,12 +106,12 @@ export default defineConfig({
     host: "0.0.0.0",
   },
   optimizeDeps: {
-    include: ["xlsx", "@capacitor/core", "@capacitor/app", "@capacitor/device"],
+    include: ["@capacitor/core", "@capacitor/app", "@capacitor/device"],
   },
   test: {
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', 'scripts/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', 'scripts/**', 'e2e/**'],
   },
 });
