@@ -85,6 +85,10 @@ const TABS = [
 ] as const;
 
 type TabId = typeof TABS[number]['id'];
+type TabGroup = typeof TABS[number]['group'];
+
+const PRIORITY_TABS: readonly TabId[] = ['dashboard', 'sales', 'products', 'kasa', 'cari'];
+const DEFAULT_EXPANDED_GROUPS: readonly TabGroup[] = ['Ana', 'Finans'];
 
 // Quick action modal for FAB
 function QuickSaleModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['db']; save: ReturnType<typeof useDB>['save']; onClose: () => void }) {
@@ -670,6 +674,13 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
   const { db, save, saveWithLog, logActivity, exportJSON, importJSON } = useDB();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<TabGroup, boolean>>({
+    Ana: true,
+    Tedarik: false,
+    Finans: true,
+    Analiz: false,
+    Sistem: false,
+  });
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('idle');
@@ -753,6 +764,21 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
 
   const navigate = useCallback((tab: TabId) => { setActiveTab(tab); setSidebarOpen(false); }, []);
 
+  const toggleGroup = useCallback((group: TabGroup) => {
+    setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
+  }, []);
+
+  const priorityTabs = useMemo(
+    () => PRIORITY_TABS.map(id => TABS.find(tab => tab.id === id)).filter((tab): tab is typeof TABS[number] => Boolean(tab)),
+    []
+  );
+
+  useEffect(() => {
+    const activeGroup = TABS.find(tab => tab.id === activeTab)?.group;
+    if (!activeGroup) return;
+    setExpandedGroups(prev => prev[activeGroup] ? prev : { ...prev, [activeGroup]: true });
+  }, [activeTab]);
+
   // Yedek event listener (Dashboard widget'ından tetiklenir)
   useEffect(() => {
     const handler = () => {
@@ -777,7 +803,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
 
   const totalKasa = useMemo(() => db.kasa.filter(k => !k.deleted).reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
   const nakit = useMemo(() => db.kasa.filter(k => !k.deleted && k.kasa === 'nakit').reduce((s, k) => s + (k.type === 'gelir' ? k.amount : -k.amount), 0), [db.kasa]);
-  const groups = ['Ana', 'Tedarik', 'Finans', 'Analiz', 'Sistem'];
+  const groups: TabGroup[] = ['Ana', 'Tedarik', 'Finans', 'Analiz', 'Sistem'];
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -832,23 +858,66 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
 
         {/* NAV */}
         <nav style={{ flex: 1, padding: '8px 7px', overflowY: 'auto', overflowX: 'hidden' }}>
+          <div style={{ marginBottom: 10, padding: '8px 8px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <div style={{ color: '#f1f5f9', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Hızlı Erişim</div>
+              <div style={{ color: '#475569', fontSize: '0.66rem', fontWeight: 700 }}>En sık kullanılanlar</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              {priorityTabs.map(tab => {
+                const gc = GROUP_COLORS[tab.group] || GROUP_COLORS['Sistem'];
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => navigate(tab.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '8px 9px', borderRadius: 10,
+                      border: `1px solid ${isActive ? gc.text + '44' : 'rgba(255,255,255,0.05)'}`,
+                      background: isActive ? gc.bg : 'rgba(255,255,255,0.02)',
+                      color: isActive ? gc.text : '#94a3b8',
+                      cursor: 'pointer', fontSize: '0.78rem', fontWeight: 700,
+                      textAlign: 'left', minWidth: 0,
+                    }}
+                  >
+                    <span style={{ width: 22, height: 22, borderRadius: 7, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: isActive ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.04)', flexShrink: 0 }}>{tab.icon}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {groups.map(group => {
             const gc = GROUP_COLORS[group] || GROUP_COLORS['Sistem'];
+            const groupTabs = TABS.filter(t => t.group === group);
+            const isExpanded = expandedGroups[group] ?? DEFAULT_EXPANDED_GROUPS.includes(group);
             return (
               <div key={group} style={{ marginBottom: 6 }}>
-                <div style={{
-                  padding: '8px 10px 4px',
-                  color: gc.text,
-                  fontSize: '0.6rem', fontWeight: 800,
-                  textTransform: 'uppercase', letterSpacing: '0.12em',
-                  opacity: 0.7,
-                  display: 'flex', alignItems: 'center', gap: 6,
-                }}>
+                <button
+                  onClick={() => toggleGroup(group)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px 6px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: gc.text,
+                    opacity: 0.85,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    textAlign: 'left',
+                  }}
+                  aria-expanded={isExpanded}
+                  aria-label={`${group} grubunu ${isExpanded ? 'daralt' : 'genislet'}`}
+                >
+                  <span style={{ fontSize: '0.7rem', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.18s ease' }}>▶</span>
+                  <span style={{ fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{group}</span>
                   <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, ${gc.text}30, transparent)` }} />
-                  {group}
-                  <div style={{ flex: 1, height: 1, background: `linear-gradient(90deg, transparent, ${gc.text}30)` }} />
-                </div>
-                {TABS.filter(t => t.group === group).map(tab => {
+                  <span style={{ fontSize: '0.64rem', color: '#64748b', fontWeight: 700 }}>{groupTabs.length}</span>
+                </button>
+                {isExpanded && groupTabs.map(tab => {
                   const badge = badges[tab.id as keyof typeof badges];
                   const isActive = activeTab === tab.id;
                   return (
