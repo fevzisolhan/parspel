@@ -599,7 +599,7 @@ function FAB({ db, save, onOpenAI, uiPrefs }: { db: ReturnType<typeof useDB>['db
 }
 
 // ── AI Drawer ──
-function AIDrawer({ open, onClose, db }: { open: boolean; onClose: () => void; db: ReturnType<typeof useDB>['db'] }) {
+function AIDrawer({ open, onClose, db, save }: { open: boolean; onClose: () => void; db: ReturnType<typeof useDB>['db']; save: ReturnType<typeof useDB>['save'] }) {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -653,7 +653,7 @@ function AIDrawer({ open, onClose, db }: { open: boolean; onClose: () => void; d
         </div>
         {/* AIAsistan content — her zaman mount, sadece visibility değişir (konuşma korunur) */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-          <AIAsistan db={db} embedded />
+          <AIAsistan db={db} save={save} embedded />
         </div>
       </div>
     </>
@@ -1194,7 +1194,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
       <QuantumLink db={db} />
 
       {/* AI Drawer */}
-      <AIDrawer open={aiDrawerOpen} onClose={() => setAiDrawerOpen(false)} db={db} />
+      <AIDrawer open={aiDrawerOpen} onClose={() => setAiDrawerOpen(false)} db={db} save={save} />
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

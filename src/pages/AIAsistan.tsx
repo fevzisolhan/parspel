@@ -1,11 +1,153 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { formatMoney } from '@/lib/utils-tr';
+import { formatMoney, genId } from '@/lib/utils-tr';
 import type { DB } from '@/types';
 import { loadConnConfig } from '@/lib/connConfig';
 import { useSpeechRecognition, useSpeechSynthesis } from '@/hooks/useSpeech';
 
-interface Props { db: DB; embedded?: boolean; }
-interface Message { role: 'user' | 'assistant'; content: string; source?: 'claude' | 'gemini' | 'offline'; }
+type SaveFn = (updater: (prev: DB) => DB) => void;
+
+interface Props { db: DB; save?: SaveFn; embedded?: boolean; }
+interface Message { role: 'user' | 'assistant'; content: string; source?: 'claude' | 'gemini' | 'offline'; actions?: DBAction[] }
+
+// ── DB İşlem Tipleri ─────────────────────────────────────────────────────────
+
+interface DBAction {
+  type: 'sale' | 'kasa_gelir' | 'kasa_gider' | 'stok_guncelle' | 'cari_tahsilat';
+  label: string;
+  payload: Record<string, unknown>;
+}
+
+/** AI yanıtından ```action blokları parse et */
+function parseActions(text: string): DBAction[] {
+  const actions: DBAction[] = [];
+  const regex = /```action\n([\s\S]*?)```/g;
+  let m: RegExpExecArray | null;
+  while ((m = regex.exec(text)) !== null) {
+    try {
+      const obj = JSON.parse(m[1]);
+      if (obj.type && obj.label) actions.push(obj as DBAction);
+    } catch { /* malformed JSON — atla */ }
+  }
+  return actions;
+}
+
+/** AI yanıtından action bloklarını temizle (chat'te gösterme) */
+function stripActions(text: string): string {
+  return text.replace(/```action\n[\s\S]*?```/g, '').trim();
+}
+
+/** DB'ye işlemi uygula — saf fonksiyon, orijinal DB'yi mutate etmez */
+function applyAction(prev: DB, action: DBAction): DB {
+  const now = new Date().toISOString();
+  const p = action.payload;
+
+  if (action.type === 'sale') {
+    const product = prev.products.find(pr => pr.id === p.productId || pr.name === p.productName);
+    if (!product) throw new Error(`Ürün bulunamadı: ${p.productName}`);
+    const qty = Number(p.quantity) || 1;
+    const unitPrice = Number(p.unitPrice) || product.price;
+    const discount = Number(p.discount) || 0;
+    const total = unitPrice * qty - discount;
+    const profit = (unitPrice - product.cost) * qty - discount;
+    const payment = (p.payment as string) || 'nakit';
+    const cari = prev.cari.find(c => c.id === p.cariId || c.name === p.cariName);
+
+    const sale = {
+      id: genId(), productId: product.id, productName: product.name,
+      productCategory: product.category,
+      customerId: cari?.id, cariId: cari?.id, cariName: cari?.name,
+      quantity: qty, unitPrice, cost: product.cost,
+      discount, discountAmount: discount,
+      subtotal: unitPrice * qty, total, profit,
+      payment, status: 'tamamlandi' as const,
+      items: [{ productId: product.id, productName: product.name, quantity: qty, unitPrice, cost: product.cost, total }],
+      createdAt: now, updatedAt: now,
+    };
+
+    const kasaEntry = payment !== 'cari' ? {
+      id: genId(), type: 'gelir' as const, category: 'satis', amount: total,
+      kasa: payment === 'nakit' ? 'nakit' : 'banka',
+      description: `AI Satış: ${product.name} x${qty}`,
+      relatedId: sale.id, createdAt: now, updatedAt: now,
+    } : null;
+
+    const stockMovement = {
+      id: genId(), productId: product.id, productName: product.name,
+      type: 'satis' as const, amount: -qty,
+      before: product.stock, after: product.stock - qty,
+      note: 'AI Asistan', date: now,
+    };
+
+    let updatedCari = prev.cari;
+    if (payment === 'cari' && cari) {
+      updatedCari = prev.cari.map(c => c.id === cari.id
+        ? { ...c, balance: c.balance + total, lastTransaction: now, updatedAt: now }
+        : c
+      );
+    }
+
+    return {
+      ...prev,
+      sales: [...prev.sales, sale],
+      products: prev.products.map(pr => pr.id === product.id ? { ...pr, stock: pr.stock - qty, updatedAt: now } : pr),
+      kasa: kasaEntry ? [...prev.kasa, kasaEntry] : prev.kasa,
+      stockMovements: [...(prev.stockMovements || []), stockMovement],
+      cari: updatedCari,
+    };
+  }
+
+  if (action.type === 'kasa_gelir' || action.type === 'kasa_gider') {
+    const entry = {
+      id: genId(),
+      type: action.type === 'kasa_gelir' ? 'gelir' as const : 'gider' as const,
+      category: (p.category as string) || (action.type === 'kasa_gelir' ? 'diger_gelir' : 'diger_gider'),
+      amount: Number(p.amount),
+      kasa: (p.kasa as string) || 'nakit',
+      description: (p.description as string) || '',
+      createdAt: now, updatedAt: now,
+    };
+    return { ...prev, kasa: [...prev.kasa, entry] };
+  }
+
+  if (action.type === 'stok_guncelle') {
+    const product = prev.products.find(pr => pr.id === p.productId || pr.name === p.productName);
+    if (!product) throw new Error(`Ürün bulunamadı: ${p.productName}`);
+    const newStock = Number(p.stock);
+    const movement = {
+      id: genId(), productId: product.id, productName: product.name,
+      type: 'duzeltme' as const, amount: newStock - product.stock,
+      before: product.stock, after: newStock,
+      note: (p.note as string) || 'AI Asistan düzeltme', date: now,
+    };
+    return {
+      ...prev,
+      products: prev.products.map(pr => pr.id === product.id ? { ...pr, stock: newStock, updatedAt: now } : pr),
+      stockMovements: [...(prev.stockMovements || []), movement],
+    };
+  }
+
+  if (action.type === 'cari_tahsilat') {
+    const cari = prev.cari.find(c => c.id === p.cariId || c.name === p.cariName);
+    if (!cari) throw new Error(`Cari bulunamadı: ${p.cariName}`);
+    const amount = Number(p.amount);
+    const kasaEntry = {
+      id: genId(), type: 'gelir' as const, category: 'tahsilat',
+      amount, kasa: (p.kasa as string) || 'nakit',
+      description: `Tahsilat: ${cari.name}`,
+      cariId: cari.id, createdAt: now, updatedAt: now,
+    };
+    return {
+      ...prev,
+      kasa: [...prev.kasa, kasaEntry],
+      cari: prev.cari.map(c => c.id === cari.id
+        ? { ...c, balance: c.balance - amount, lastTransaction: now, updatedAt: now }
+        : c
+      ),
+    };
+  }
+
+  return prev;
+}
 
 // ── Firebase AI Key Yönetimi ──────────────────────────────────────────────
 function getAiKeysUrl(): string {
@@ -381,7 +523,7 @@ function ApiSettings({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function AIAsistan({ db, embedded = false }: Props) {
+export default function AIAsistan({ db, save, embedded = false }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -402,7 +544,7 @@ export default function AIAsistan({ db, embedded = false }: Props) {
 
   useEffect(() => { if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight; }, [messages, loading]);
 
-  const [keysLoaded, setKeysLoaded] = useState(false);
+  const [_keysLoaded, setKeysLoaded] = useState(false);
   const [hasKeys, setHasKeys] = useState(false);
   const [keyLoadError, setKeyLoadError] = useState(false);
   const keysRef = useRef({ claude: '', gemini: '' });
@@ -490,6 +632,31 @@ export default function AIAsistan({ db, embedded = false }: Props) {
       setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], content: u[u.length - 1].content + chunk }; return u; });
     };
 
+    // Yanıt tamamlandığında action'ları parse et ve uygula
+    const finalizeResponse = () => {
+      setMessages(prev => {
+        const u = [...prev];
+        const last = u[u.length - 1];
+        if (!last || last.role !== 'assistant') return u;
+        const actions = parseActions(last.content);
+        if (actions.length > 0) {
+          // Action bloklarını mesajdan temizle
+          u[u.length - 1] = { ...last, content: stripActions(last.content), actions };
+          // DB'ye uygula
+          if (save) {
+            actions.forEach(action => {
+              try {
+                save(prev => applyAction(prev, action));
+              } catch (err) {
+                console.warn('AI action uygulanamadı:', err);
+              }
+            });
+          }
+        }
+        return u;
+      });
+    };
+
     // Rate limit hata mesajı oluştur
     const rateLimitMsg = (api: string) =>
       `⚠️ **${api} rate limit aşıldı** — çok fazla istek gönderildi.\n\nBirkaç dakika bekleyip tekrar deneyin. Bu sürede çevrimdışı mod aktif.`;
@@ -499,6 +666,7 @@ export default function AIAsistan({ db, embedded = false }: Props) {
         setApiStatus('claude');
         setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], source: 'claude' }; return u; });
         await askClaude(newMessages, context, claudeKey, appendChunk);
+        finalizeResponse();
         if (autoSpeak) {
           setMessages(prev => { if (prev[prev.length-1]?.content) speak(prev[prev.length-1].content); return prev; });
         }
@@ -519,6 +687,7 @@ export default function AIAsistan({ db, embedded = false }: Props) {
         setApiStatus('gemini');
         setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], source: 'gemini' }; return u; });
         await askGemini(newMessages, context, geminiKey, appendChunk);
+        finalizeResponse();
         if (autoSpeak) {
           setMessages(prev => { if (prev[prev.length-1]?.content) speak(prev[prev.length-1].content); return prev; });
         }
@@ -669,11 +838,27 @@ export default function AIAsistan({ db, embedded = false }: Props) {
                 </div>
               </div>
               {msg.role === 'assistant' && msg.content && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                  {msg.source && <span style={{ fontSize: '0.7rem', color: sourceLabel[msg.source]?.color || '#64748b', fontWeight: 600, background: sourceLabel[msg.source]?.bg, borderRadius: 5, padding: '2px 7px' }}>{sourceLabel[msg.source]?.label}</span>}
-                  <button onClick={() => copyMsg(msg.content, i)} style={{ background: 'none', border: 'none', color: copiedIdx === i ? '#10b981' : '#334155', cursor: 'pointer', fontSize: '0.72rem', padding: '2px 6px', borderRadius: 5, transition: 'color 0.2s' }}>
-                    {copiedIdx === i ? '✓ Kopyalandı' : '📋 Kopyala'}
-                  </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {msg.source && <span style={{ fontSize: '0.7rem', color: sourceLabel[msg.source]?.color || '#64748b', fontWeight: 600, background: sourceLabel[msg.source]?.bg, borderRadius: 5, padding: '2px 7px' }}>{sourceLabel[msg.source]?.label}</span>}
+                    <button onClick={() => copyMsg(msg.content, i)} style={{ background: 'none', border: 'none', color: copiedIdx === i ? '#10b981' : '#334155', cursor: 'pointer', fontSize: '0.72rem', padding: '2px 6px', borderRadius: 5, transition: 'color 0.2s' }}>
+                      {copiedIdx === i ? '✓ Kopyalandı' : '📋 Kopyala'}
+                    </button>
+                  </div>
+                  {/* Uygulanan DB işlemleri */}
+                  {msg.actions && msg.actions.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                      {msg.actions.map((action, ai) => (
+                        <span key={ai} style={{
+                          fontSize: '0.7rem', background: 'rgba(16,185,129,0.12)',
+                          border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6,
+                          padding: '3px 8px', color: '#6ee7b7', fontWeight: 600,
+                        }}>
+                          ✓ {action.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
