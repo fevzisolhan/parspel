@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { assertSafeSpreadsheetFile, readSafeWorkbook } from '@/lib/safeXlsx';
 import { genId, formatMoney } from '@/lib/utils-tr';
 import type { DB } from '@/types';
 
@@ -93,21 +93,25 @@ export default function ExcelImport({ db, save }: Props) {
 
   const handleFile = (file: File) => {
     setLoading(true);
+    try {
+      assertSafeSpreadsheetFile(file, ['.xlsx', '.xlsm']);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error), 'error');
+      setLoading(false);
+      return;
+    }
     const reader = new FileReader();
-    reader.onload = ev => {
+    reader.onload = async ev => {
       try {
-        const wb = XLSX.read(ev.target?.result as ArrayBuffer, { type: 'array' });
-        const ozetSheet = wb.Sheets['ÖZET TABLO'];
-        const sayfa1Sheet = wb.Sheets['Sayfa1'];
-        const giderSheet = wb.Sheets['GİDERLER'];
-        if (!ozetSheet && !sayfa1Sheet && !giderSheet) {
+        const wb = await readSafeWorkbook(ev.target?.result as ArrayBuffer, { sourceName: file.name });
+        const ozetRows: unknown[][] = wb.getSheetRows('ÖZET TABLO', { defval: '' });
+        const s1Rows: unknown[][] = wb.getSheetRows('Sayfa1', { defval: '' });
+        const giderRows: unknown[][] = wb.getSheetRows('GİDERLER', { defval: '' });
+        if (ozetRows.length === 0 && s1Rows.length === 0 && giderRows.length === 0) {
           showToast('Bu dosya tanımlanamadı. Lütfen SOBA TAKİP dosyasını yükleyin!', 'error');
           setLoading(false);
           return;
         }
-        const ozetRows: unknown[][] = ozetSheet ? XLSX.utils.sheet_to_json(ozetSheet, { header: 1, defval: '' }) : [];
-        const s1Rows: unknown[][] = sayfa1Sheet ? XLSX.utils.sheet_to_json(sayfa1Sheet, { header: 1, defval: '' }) : [];
-        const giderRows: unknown[][] = giderSheet ? XLSX.utils.sheet_to_json(giderSheet, { header: 1, defval: '' }) : [];
         setPreview({
           cari: parseOzetTablo(ozetRows),
           sales: parseSayfa1(s1Rows),
@@ -217,7 +221,7 @@ export default function ExcelImport({ db, save }: Props) {
             ) : (
               <>
                 <div style={{ color: '#93c5fd', fontWeight: 700, fontSize: '1rem', marginBottom: 6 }}>Dosyayı buraya sürükleyin ya da tıklayın</div>
-                <div style={{ color: '#475569', fontSize: '0.82rem' }}>SOBA_TAKIP_GIDERLI.xlsm · .xlsx · .xls formatları desteklenir</div>
+                <div style={{ color: '#475569', fontSize: '0.82rem' }}>SOBA_TAKIP_GIDERLI.xlsm ve .xlsx formatları desteklenir</div>
                 <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 10 }}>
                   {[['ÖZET TABLO', '→ Cariler', '#8b5cf6'], ['Sayfa1', '→ Satışlar', '#10b981'], ['GİDERLER', '→ Kasa', '#f59e0b']].map(([s, t, c]) => (
                     <span key={s} style={{ background: `${c}12`, border: `1px solid ${c}25`, borderRadius: 6, padding: '3px 10px', fontSize: '0.73rem', color: c }}><strong>{s}</strong> {t}</span>
@@ -226,7 +230,7 @@ export default function ExcelImport({ db, save }: Props) {
               </>
             )}
           </div>
-          <input ref={fileRef} type="file" accept=".xlsm,.xlsx,.xls" onChange={handleFileInput} style={{ display: 'none' }} />
+          <input ref={fileRef} type="file" accept=".xlsm,.xlsx" onChange={handleFileInput} style={{ display: 'none' }} />
         </Card>
       )}
 

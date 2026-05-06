@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import { downloadAoASheetsAsXlsx, downloadObjectSheetsAsXlsx } from '@/lib/safeXlsx';
 import type { DB } from '@/types';
 
 function fmtDate(iso: string): string {
@@ -25,8 +25,8 @@ export interface ExportOptions {
 }
 
 export function exportToExcel(db: DB, options: ExportOptions = {}): void {
-  const wb = XLSX.utils.book_new();
   const { dateFrom, dateTo, sheets = ['stok', 'satislar', 'cari', 'kasa'] } = options;
+  const exportSheets: Array<{ name: string; rows: Record<string, unknown>[]; widths?: number[] }> = [];
 
   function inDateRange(iso: string): boolean {
     if (!dateFrom && !dateTo) return true;
@@ -50,9 +50,7 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
       'Eklenme Tarihi': fmtDate(p.createdAt),
       'Güncelleme Tarihi': fmtDate(p.updatedAt),
     }));
-    const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}]);
-    setColumnWidths(ws, [30, 12, 15, 8, 10, 15, 15, 15, 10, 18, 18]);
-    XLSX.utils.book_append_sheet(wb, ws, 'Stok');
+    exportSheets.push({ name: 'Stok', rows: rows.length > 0 ? rows : [{}], widths: [30, 12, 15, 8, 10, 15, 15, 15, 10, 18, 18] });
   }
 
   if (sheets.includes('satislar')) {
@@ -70,9 +68,7 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
       'Ödeme': s.payment,
       'Durum': s.status === 'tamamlandi' ? 'Tamamlandı' : s.status === 'iade' ? 'İade' : 'İptal',
     }));
-    const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}]);
-    setColumnWidths(ws, [18, 30, 20, 8, 15, 15, 12, 15, 15, 10, 12]);
-    XLSX.utils.book_append_sheet(wb, ws, 'Satışlar');
+    exportSheets.push({ name: 'Satışlar', rows: rows.length > 0 ? rows : [{}], widths: [18, 30, 20, 8, 15, 15, 12, 15, 15, 10, 12] });
   }
 
   if (sheets.includes('cari')) {
@@ -87,9 +83,7 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
       'Son İşlem': fmtDate(c.lastTransaction || ''),
       'Eklenme Tarihi': fmtDate(c.createdAt),
     }));
-    const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}]);
-    setColumnWidths(ws, [25, 12, 15, 14, 22, 30, 15, 18, 18]);
-    XLSX.utils.book_append_sheet(wb, ws, 'Cari Hesaplar');
+    exportSheets.push({ name: 'Cari Hesaplar', rows: rows.length > 0 ? rows : [{}], widths: [25, 12, 15, 14, 22, 30, 15, 18, 18] });
   }
 
   if (sheets.includes('kasa')) {
@@ -103,24 +97,19 @@ export function exportToExcel(db: DB, options: ExportOptions = {}): void {
       'Tutar': fmtMoney(k.amount),
       'Cari': db.cari.find(c => c.id === k.cariId)?.name || '',
     }));
-    const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}]);
-    setColumnWidths(ws, [18, 10, 10, 15, 35, 15, 20]);
-    XLSX.utils.book_append_sheet(wb, ws, 'Kasa İşlemleri');
+    exportSheets.push({ name: 'Kasa İşlemleri', rows: rows.length > 0 ? rows : [{}], widths: [18, 10, 10, 15, 35, 15, 20] });
   }
 
   const dateStr = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `soba-rapor-${dateStr}.xlsx`);
-}
-
-function setColumnWidths(ws: XLSX.WorkSheet, widths: number[]) {
-  ws['!cols'] = widths.map(w => ({ wch: w }));
+  void downloadObjectSheetsAsXlsx(exportSheets, `soba-rapor-${dateStr}.xlsx`);
 }
 
 
 /** Düz nesne dizisini Excel olarak indir (Reports sayfası için) */
 export function exportArrayToExcel(data: Record<string, unknown>[], filename: string): void {
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(data);
-  XLSX.utils.book_append_sheet(wb, ws, 'Rapor');
-  XLSX.writeFile(wb, `${filename}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const headers = data.length > 0 ? Object.keys(data[0]) : [];
+  const rows = headers.length > 0
+    ? [headers, ...data.map(item => headers.map(header => item[header] ?? ''))]
+    : [[]];
+  void downloadAoASheetsAsXlsx([{ name: 'Rapor', rows }], `${filename}-${new Date().toISOString().slice(0, 10)}.xlsx`);
 }

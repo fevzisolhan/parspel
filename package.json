@@ -9,7 +9,7 @@
         "preview": "vite preview",
         "test": "vitest",
         "test:run": "vitest --run",
-    "test:report": "vitest run --reporter=html --outputFile=test-report.html",
+        "test:report": "vitest run --reporter=html --outputFile=test-report.html",
         "typecheck": "tsc --noEmit",
         "cap:build": "npm run build && npx cap sync",
         "cap:build:prod": "npm run build && npx cap sync --config capacitor.config.prod.json",
@@ -105,6 +105,6 @@
         "@capacitor/push-notifications": "^8.0.3",
         "@capacitor/splash-screen": "^8.0.1",
         "@capacitor/status-bar": "^8.0.2",
-        "xlsx": "^0.18.5"
+        "exceljs": "^4.4.0"
     }
 }

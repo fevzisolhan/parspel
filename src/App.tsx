@@ -89,6 +89,29 @@ type TabGroup = typeof TABS[number]['group'];
 
 const PRIORITY_TABS: readonly TabId[] = ['dashboard', 'sales', 'products', 'kasa', 'cari'];
 const DEFAULT_EXPANDED_GROUPS: readonly TabGroup[] = ['Ana', 'Finans'];
+const FAVORITE_TABS_KEY = 'sobaYonetim_favoriteTabs';
+
+function loadFavoriteTabs(): TabId[] {
+  try {
+    const raw = localStorage.getItem(FAVORITE_TABS_KEY);
+    if (!raw) return [...PRIORITY_TABS];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [...PRIORITY_TABS];
+    const validTabIds = new Set<TabId>(TABS.map(tab => tab.id));
+    const favorites = parsed.filter((tabId): tabId is TabId => typeof tabId === 'string' && validTabIds.has(tabId as TabId));
+    return favorites.length > 0 ? favorites.slice(0, 6) : [...PRIORITY_TABS];
+  } catch {
+    return [...PRIORITY_TABS];
+  }
+}
+
+function saveFavoriteTabs(tabIds: readonly TabId[]) {
+  try {
+    localStorage.setItem(FAVORITE_TABS_KEY, JSON.stringify(tabIds.slice(0, 6)));
+  } catch {
+    // ignore localStorage failures
+  }
+}
 
 // Quick action modal for FAB
 function QuickSaleModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['db']; save: ReturnType<typeof useDB>['save']; onClose: () => void }) {
@@ -268,7 +291,7 @@ function QuickProductModal({ db, save, onClose }: { db: ReturnType<typeof useDB>
   );
 }
 
-function GlobalSearch({ onNavigate, db }: { onNavigate: (tab: TabId) => void; db: ReturnType<typeof useDB>['db'] }) {
+function GlobalSearch({ onNavigate, db, favoriteTabs }: { onNavigate: (tab: TabId) => void; db: ReturnType<typeof useDB>['db']; favoriteTabs: readonly TabId[] }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -277,12 +300,15 @@ function GlobalSearch({ onNavigate, db }: { onNavigate: (tab: TabId) => void; db
     if (!query.trim() || query.length < 2) return [];
     const q = query.toLowerCase();
     const res: { tab: TabId; label: string; icon: string; match: string }[] = [];
-    TABS.forEach(t => { if (t.label.toLowerCase().includes(q)) res.push({ tab: t.id, label: t.label, icon: t.icon, match: 'Modül' }); });
+    const favoriteSet = new Set(favoriteTabs);
+    TABS.forEach(t => { if (t.label.toLowerCase().includes(q)) res.push({ tab: t.id, label: t.label, icon: t.icon, match: favoriteSet.has(t.id) ? 'Favori modül' : 'Modül' }); });
     db.products.filter(p => p.name.toLowerCase().includes(q) || (p.brand || '').toLowerCase().includes(q)).slice(0, 3).forEach(p => res.push({ tab: 'products', label: p.name, icon: '📦', match: `Stok: ${p.stock} · ₺${p.price}` }));
     db.cari.filter(c => c.name.toLowerCase().includes(q)).slice(0, 3).forEach(c => res.push({ tab: 'cari', label: c.name, icon: '👤', match: c.type === 'musteri' ? 'Müşteri' : 'Tedarikçi' }));
     db.suppliers.filter(s => s.name.toLowerCase().includes(q)).slice(0, 2).forEach(s => res.push({ tab: 'suppliers', label: s.name, icon: '🏭', match: 'Tedarikçi' }));
-    return res.slice(0, 8);
-  }, [query, db]);
+    return res
+      .sort((left, right) => Number(favoriteSet.has(right.tab)) - Number(favoriteSet.has(left.tab)))
+      .slice(0, 8);
+  }, [query, db, favoriteTabs]);
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -600,7 +626,7 @@ function FAB({ db, save, onOpenAI, uiPrefs }: { db: ReturnType<typeof useDB>['db
 }
 
 // ── AI Drawer ──
-function AIDrawer({ open, onClose, db }: { open: boolean; onClose: () => void; db: ReturnType<typeof useDB>['db'] }) {
+function AIDrawer({ open, onClose, db, save }: { open: boolean; onClose: () => void; db: ReturnType<typeof useDB>['db']; save: ReturnType<typeof useDB>['save'] }) {
   useEffect(() => {
     if (open) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -674,6 +700,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
   const { db, save, saveWithLog, logActivity, exportJSON, importJSON } = useDB();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [favoriteTabs, setFavoriteTabs] = useState<TabId[]>(loadFavoriteTabs);
   const [expandedGroups, setExpandedGroups] = useState<Record<TabGroup, boolean>>({
     Ana: true,
     Tedarik: false,
@@ -768,9 +795,19 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
     setExpandedGroups(prev => ({ ...prev, [group]: !prev[group] }));
   }, []);
 
+  const toggleFavoriteTab = useCallback((tabId: TabId) => {
+    setFavoriteTabs(prev => {
+      const next = prev.includes(tabId)
+        ? prev.filter(currentTabId => currentTabId !== tabId)
+        : [tabId, ...prev.filter(currentTabId => currentTabId !== tabId)].slice(0, 6);
+      saveFavoriteTabs(next);
+      return next;
+    });
+  }, []);
+
   const priorityTabs = useMemo(
-    () => PRIORITY_TABS.map(id => TABS.find(tab => tab.id === id)).filter((tab): tab is typeof TABS[number] => Boolean(tab)),
-    []
+    () => favoriteTabs.map(id => TABS.find(tab => tab.id === id)).filter((tab): tab is typeof TABS[number] => Boolean(tab)),
+    [favoriteTabs]
   );
 
   useEffect(() => {
@@ -858,10 +895,10 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
 
         {/* NAV */}
         <nav style={{ flex: 1, padding: '8px 7px', overflowY: 'auto', overflowX: 'hidden' }}>
-          <div style={{ marginBottom: 10, padding: '8px 8px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)' }}>
+          <div role="region" aria-label="Hızlı erişim" style={{ marginBottom: 10, padding: '8px 8px 10px', borderRadius: 14, background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.04)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
               <div style={{ color: '#f1f5f9', fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Hızlı Erişim</div>
-              <div style={{ color: '#475569', fontSize: '0.66rem', fontWeight: 700 }}>En sık kullanılanlar</div>
+              <div style={{ color: '#475569', fontSize: '0.66rem', fontWeight: 700 }}>Favori modüller</div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
               {priorityTabs.map(tab => {
@@ -871,6 +908,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
                   <button
                     key={tab.id}
                     onClick={() => navigate(tab.id)}
+                    aria-label={`${tab.label} hızlı erişim`}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8,
                       padding: '8px 9px', borderRadius: 10,
@@ -920,74 +958,94 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
                 {isExpanded && groupTabs.map(tab => {
                   const badge = badges[tab.id as keyof typeof badges];
                   const isActive = activeTab === tab.id;
+                  const isFavorite = favoriteTabs.includes(tab.id);
                   return (
-                    <button
-                      key={tab.id}
-                      onClick={() => navigate(tab.id)}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: 9,
-                        padding: '9px 10px', border: 'none', borderRadius: 10,
-                        cursor: 'pointer', marginBottom: 1,
-                        background: isActive ? gc.bg : 'transparent',
-                        color: isActive ? gc.text : '#3d5166',
-                        fontWeight: isActive ? 700 : 400,
-                        fontSize: '0.845rem',
-                        transition: 'all 0.18s cubic-bezier(0.22,1,0.36,1)',
-                        borderLeft: isActive ? `2.5px solid ${gc.text}` : '2.5px solid transparent',
-                        outline: 'none', textAlign: 'left',
-                        boxShadow: isActive ? `inset 0 0 0 1px ${gc.text}18, 0 2px 12px ${gc.glow}` : 'none',
-                        position: 'relative',
-                        overflow: 'hidden',
-                      }}
-                      onMouseEnter={e => {
-                        if (!isActive) {
-                          const el = e.currentTarget as HTMLButtonElement;
-                          el.style.background = 'rgba(255,255,255,0.03)';
-                          el.style.color = '#94a3b8';
-                          el.style.borderLeft = `2.5px solid rgba(255,255,255,0.06)`;
-                        }
-                      }}
-                      onMouseLeave={e => {
-                        if (!isActive) {
-                          const el = e.currentTarget as HTMLButtonElement;
-                          el.style.background = 'transparent';
-                          el.style.color = '#3d5166';
-                          el.style.borderLeft = '2.5px solid transparent';
-                        }
-                      }}
-                    >
-                      {/* İkon arka planı */}
-                      <span style={{
-                        width: 26, height: 26, flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        borderRadius: 7, fontSize: '0.88rem',
-                        background: isActive ? gc.bg : 'transparent',
-                        transition: 'all 0.18s',
-                        filter: isActive ? 'none' : 'grayscale(40%)',
-                      }}>{tab.icon}</span>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
-                      {badge ? (
+                    <div key={tab.id} style={{ display: 'flex', alignItems: 'stretch', gap: 6, marginBottom: 1 }}>
+                      <button
+                        onClick={() => navigate(tab.id)}
+                        style={{
+                          width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+                          padding: '9px 10px', border: 'none', borderRadius: 10,
+                          cursor: 'pointer',
+                          background: isActive ? gc.bg : 'transparent',
+                          color: isActive ? gc.text : '#3d5166',
+                          fontWeight: isActive ? 700 : 400,
+                          fontSize: '0.845rem',
+                          transition: 'all 0.18s cubic-bezier(0.22,1,0.36,1)',
+                          borderLeft: isActive ? `2.5px solid ${gc.text}` : '2.5px solid transparent',
+                          outline: 'none', textAlign: 'left',
+                          boxShadow: isActive ? `inset 0 0 0 1px ${gc.text}18, 0 2px 12px ${gc.glow}` : 'none',
+                          position: 'relative',
+                          overflow: 'hidden',
+                          minWidth: 0,
+                          flex: 1,
+                        }}
+                        onMouseEnter={e => {
+                          if (!isActive) {
+                            const el = e.currentTarget as HTMLButtonElement;
+                            el.style.background = 'rgba(255,255,255,0.03)';
+                            el.style.color = '#94a3b8';
+                            el.style.borderLeft = `2.5px solid rgba(255,255,255,0.06)`;
+                          }
+                        }}
+                        onMouseLeave={e => {
+                          if (!isActive) {
+                            const el = e.currentTarget as HTMLButtonElement;
+                            el.style.background = 'transparent';
+                            el.style.color = '#3d5166';
+                            el.style.borderLeft = '2.5px solid transparent';
+                          }
+                        }}
+                      >
                         <span style={{
-                          background: (tab.id === 'products' || tab.id === 'monitor') ? 'linear-gradient(135deg, #dc2626, #ef4444)' : 'linear-gradient(135deg, #d97706, #f59e0b)',
-                          color: '#fff', borderRadius: 20,
-                          minWidth: 19, height: 17, padding: '0 4px',
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: '0.62rem', fontWeight: 900, letterSpacing: '-0.01em',
-                          boxShadow: (tab.id === 'products' || tab.id === 'monitor')
-                            ? '0 0 8px rgba(239,68,68,0.5)' : '0 0 8px rgba(245,158,11,0.4)',
-                          animation: 'badgePulse 2.5s ease-in-out infinite',
+                          width: 26, height: 26, flexShrink: 0,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: 7, fontSize: '0.88rem',
+                          background: isActive ? gc.bg : 'transparent',
+                          transition: 'all 0.18s',
+                          filter: isActive ? 'none' : 'grayscale(40%)',
+                        }}>{tab.icon}</span>
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tab.label}</span>
+                        {badge ? (
+                          <span style={{
+                            background: (tab.id === 'products' || tab.id === 'monitor') ? 'linear-gradient(135deg, #dc2626, #ef4444)' : 'linear-gradient(135deg, #d97706, #f59e0b)',
+                            color: '#fff', borderRadius: 20,
+                            minWidth: 19, height: 17, padding: '0 4px',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: '0.62rem', fontWeight: 900, letterSpacing: '-0.01em',
+                            boxShadow: (tab.id === 'products' || tab.id === 'monitor')
+                              ? '0 0 8px rgba(239,68,68,0.5)' : '0 0 8px rgba(245,158,11,0.4)',
+                            animation: 'badgePulse 2.5s ease-in-out infinite',
+                            flexShrink: 0,
+                          }}>{badge > 99 ? '99+' : badge}</span>
+                        ) : null}
+                        {isActive && (
+                          <span style={{
+                            position: 'absolute', right: 0, top: '20%', bottom: '20%',
+                            width: 2, borderRadius: 2,
+                            background: `linear-gradient(180deg, transparent, ${gc.text}, transparent)`,
+                          }} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleFavoriteTab(tab.id)}
+                        aria-label={`${tab.label} favorilere ${isFavorite ? 'ekli, kaldır' : 'ekle'}`}
+                        title={isFavorite ? 'Favorilerden kaldır' : 'Favorilere ekle'}
+                        style={{
+                          width: 34,
+                          border: 'none',
+                          borderRadius: 10,
+                          background: isFavorite ? 'rgba(245,158,11,0.14)' : 'rgba(255,255,255,0.03)',
+                          color: isFavorite ? '#f59e0b' : '#475569',
+                          cursor: 'pointer',
                           flexShrink: 0,
-                        }}>{badge > 99 ? '99+' : badge}</span>
-                      ) : null}
-                      {/* Aktif gösterge çizgisi */}
-                      {isActive && (
-                        <span style={{
-                          position: 'absolute', right: 0, top: '20%', bottom: '20%',
-                          width: 2, borderRadius: 2,
-                          background: `linear-gradient(180deg, transparent, ${gc.text}, transparent)`,
-                        }} />
-                      )}
-                    </button>
+                          fontSize: '0.95rem',
+                        }}
+                      >
+                        {isFavorite ? '★' : '☆'}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -1112,7 +1170,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
               {TABS.find(t => t.id === activeTab)?.label}
             </h1>
           </div>
-          {!isMobile && <GlobalSearch onNavigate={navigate} db={db} />}
+          {!isMobile && <GlobalSearch onNavigate={navigate} db={db} favoriteTabs={favoriteTabs} />}
           <div style={{ display: 'flex', gap: isMobile ? 4 : 6, alignItems: 'center', flexShrink: 0 }}>
             {/* Kısayollar */}
             {!isMobile && (
@@ -1244,7 +1302,7 @@ function AppContent({ onLogout, username }: { onLogout: () => void; username?: s
       <ReportButton visible={uiPrefs.showReportButton} />
 
       {/* AI Drawer */}
-      <AIDrawer open={aiDrawerOpen} onClose={() => setAiDrawerOpen(false)} db={db} />
+      <AIDrawer open={aiDrawerOpen} onClose={() => setAiDrawerOpen(false)} db={db} save={save} />
 
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

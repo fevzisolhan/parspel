@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import * as XLSX from 'xlsx';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { downloadObjectSheetsAsXlsx } from '@/lib/safeXlsx';
 import { genId, formatMoney, formatDate } from '@/lib/utils-tr';
 import type { DB, BankTransaction } from '@/types';
 
@@ -218,11 +218,9 @@ export default function Bank({ db, save }: Props) {
             Durum: STATUS_LABEL[t.status || 'unmatched']?.label || '',
             Cari: t.matchedCariId ? (db.cari.find(c => c.id === t.matchedCariId)?.name || '') : '',
           }));
-          const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{}]);
-          ws['!cols'] = [{ wch: 18 }, { wch: 35 }, { wch: 15 }, { wch: 10 }, { wch: 14 }, { wch: 20 }];
-          const wb = XLSX.utils.book_new();
-          XLSX.utils.book_append_sheet(wb, ws, 'Banka İşlemleri');
-          XLSX.writeFile(wb, `banka-islemleri-${new Date().toISOString().slice(0, 10)}.xlsx`);
+          void downloadObjectSheetsAsXlsx([
+            { name: 'Banka İşlemleri', rows: rows.length > 0 ? rows : [{}], widths: [18, 35, 15, 10, 14, 20] },
+          ], `banka-islemleri-${new Date().toISOString().slice(0, 10)}.xlsx`);
           showToast('Excel indirildi!', 'success');
         }} style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.25)', borderRadius: 10, color: '#818cf8', padding: '9px 14px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>📥 Excel</button>
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Ara..." style={{ flex: 1, padding: '9px 13px', background: '#1e293b', border: '1px solid #334155', borderRadius: 10, color: '#f1f5f9', minWidth: 120 }} />

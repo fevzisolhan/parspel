@@ -1,9 +1,9 @@
 import { useState, useMemo, useRef } from 'react';
-import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmDialog';
+import { assertSafeSpreadsheetFile, readSafeWorkbook } from '@/lib/safeXlsx';
 import { genId, formatMoney, parseBankDate } from '@/lib/utils-tr';
 import type { DB, BudgetCategory } from '@/types';
 
@@ -146,10 +146,9 @@ export default function Butce({ db, save }: Props) {
     return entries;
   };
 
-  const parseXLSX = (buf: ArrayBuffer): string => {
-    const wb = XLSX.read(buf, { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const parseXLSX = async (buf: ArrayBuffer): Promise<string> => {
+    const wb = await readSafeWorkbook(buf, { sourceName: 'banka-ekstresi' });
+    const rows: unknown[][] = wb.getSheetRows(wb.sheetNames[0], { defval: '' });
     return rows.map(row => (row as unknown[]).map(cell => String(cell ?? '')).join(';')).join('\n');
   };
 
@@ -157,7 +156,17 @@ export default function Butce({ db, save }: Props) {
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = file.name.split('.').pop()?.toLowerCase();
-    const isXLSX = ext === 'xlsx' || ext === 'xls';
+    const isXLSX = ext === 'xlsx' || ext === 'xlsm';
+
+    if (isXLSX) {
+      try {
+        assertSafeSpreadsheetFile(file, ['.xlsx', '.xlsm']);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : String(error), 'error');
+        if (fileRef.current) fileRef.current.value = '';
+        return;
+      }
+    }
 
     const processText = (text: string) => {
       const entries = parseBankCSV(text);
@@ -173,9 +182,9 @@ export default function Butce({ db, save }: Props) {
 
     if (isXLSX) {
       const reader = new FileReader();
-      reader.onload = ev => {
+      reader.onload = async ev => {
         try {
-          const text = parseXLSX(ev.target?.result as ArrayBuffer);
+          const text = await parseXLSX(ev.target?.result as ArrayBuffer);
           processText(text);
         } catch {
           showToast('Excel dosyası okunamadı. Farklı bir format deneyin.', 'error');
@@ -352,7 +361,7 @@ export default function Butce({ db, save }: Props) {
           <div style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 10, padding: '12px 16px', color: '#93c5fd', fontSize: '0.82rem', lineHeight: 1.7 }}>
             <strong>Desteklenen Formatlar:</strong>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '7px 0' }}>
-              {[['📊', 'XLSX', '#10b981'], ['📗', 'XLS', '#10b981'], ['📄', 'CSV', '#3b82f6'], ['📝', 'TXT', '#64748b']].map(([icon, fmt, color]) => (
+              {[['📊', 'XLSX', '#10b981'], ['📙', 'XLSM', '#10b981'], ['📄', 'CSV', '#3b82f6'], ['📝', 'TXT', '#64748b']].map(([icon, fmt, color]) => (
                 <span key={fmt} style={{ background: `${color}15`, border: `1px solid ${color}30`, borderRadius: 6, padding: '2px 9px', fontSize: '0.78rem', fontWeight: 700, color }}>{icon} {fmt}</span>
               ))}
             </div>
@@ -361,7 +370,7 @@ export default function Butce({ db, save }: Props) {
           </div>
           {!importResult ? (
             <>
-              <input ref={fileRef} type="file" accept=".csv,.txt,.xls,.xlsx" onChange={handleFileImport} style={{ display: 'none' }} />
+              <input ref={fileRef} type="file" accept=".csv,.txt,.xlsx,.xlsm" onChange={handleFileImport} style={{ display: 'none' }} />
               <button onClick={() => fileRef.current?.click()} style={{ padding: '40px 0', background: 'rgba(59,130,246,0.06)', border: '2px dashed rgba(59,130,246,0.3)', borderRadius: 12, color: '#60a5fa', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem', transition: 'all 0.2s' }}
                 onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(59,130,246,0.6)'}
                 onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(59,130,246,0.3)'}>

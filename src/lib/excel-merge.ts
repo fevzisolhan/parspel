@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import { assertSafeSpreadsheetFile, downloadAoASheetsAsXlsx, makeSafeHeaders, parseCsvText, readSafeWorkbook } from "./safeXlsx";
 
 export interface SheetData {
   name: string;
@@ -108,7 +108,7 @@ export function detectRecoveryFile(fileName: string): boolean {
     lower.includes("autosave") ||
     lower.includes("~$") ||
     lower.startsWith("~") ||
-    /\(\d+\)\.(xlsx|xls|xlsm|csv|json|xml)$/.test(lower) ||
+    /\(\d+\)\.(xlsx|xlsm|csv|json|xml)$/.test(lower) ||
     lower.includes("_backup") ||
     lower.includes("_bak") ||
     lower.includes("kopya") ||
@@ -123,24 +123,19 @@ export async function parseExcelFile(file: File): Promise<ExcelFile> {
   if (ext === ".json") return parseJsonFile(file);
   if (ext === ".xml") return parseXmlFile(file);
 
+  assertSafeSpreadsheetFile(file, ['.xlsx', '.xlsm']);
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+  const workbook = await readSafeWorkbook(buffer, { sourceName: file.name });
 
-  const sheets: SheetData[] = workbook.SheetNames.map((sheetName) => {
-    const worksheet = workbook.Sheets[sheetName];
-    const rawData = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(
-      worksheet,
-      { header: 1, defval: null, blankrows: true }
-    );
+  const sheets: SheetData[] = workbook.sheetNames.map((sheetName) => {
+    const rawData = workbook.getSheetRows(sheetName, { defval: null, blankrows: true }) as (string | number | boolean | null)[][];
 
     if (rawData.length === 0) {
       return { name: sheetName, headers: [], rows: [], rawRows: [] };
     }
 
     const headerRow = rawData[0] as (string | number | boolean | null)[];
-    const headers = headerRow.map((h, i) =>
-      h != null ? String(h) : `Sütun ${i + 1}`
-    );
+    const headers = makeSafeHeaders(headerRow);
 
     const rows = rawData.slice(1).map((rawRow) => {
       const arr = rawRow as (string | number | boolean | null | Date)[];
@@ -168,20 +163,13 @@ export async function parseExcelFile(file: File): Promise<ExcelFile> {
 }
 
 export async function parseCsvFile(file: File): Promise<ExcelFile> {
+  assertSafeSpreadsheetFile(file, ['.csv']);
   const text = await file.text();
-  const workbook = XLSX.read(text, { type: "string" });
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const rawData = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(
-    worksheet,
-    { header: 1, defval: null }
-  );
+  const rawData = parseCsvText(text) as (string | number | boolean | null)[][];
 
   const headers =
     rawData.length > 0
-      ? (rawData[0] as (string | number | boolean | null)[]).map((h, i) =>
-          h != null ? String(h) : `Sütun ${i + 1}`
-        )
+      ? makeSafeHeaders(rawData[0] as (string | number | boolean | null)[])
       : [];
 
   const rows = rawData.slice(1).map((rawRow) => {
@@ -755,10 +743,7 @@ export function exportToExcel(
   sheetName = "Birleştirilmiş Veri"
 ): void {
   const data = [headers, ...rows.map((row) => headers.map((h) => row[h] ?? ""))];
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
-  XLSX.writeFile(wb, fileName);
+  void downloadAoASheetsAsXlsx([{ name: sheetName, rows: data }], fileName);
 }
 
 export function exportReportToExcel(report: MergeReport, fileName: string): void {
@@ -774,10 +759,7 @@ export function exportReportToExcel(report: MergeReport, fileName: string): void
     ["Bulank Eslestirme Sayisi", report.fuzzyMatchCount],
     ["Atlanan Satir", report.skippedRows],
   ];
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Birlestirme Raporu");
-  XLSX.writeFile(wb, fileName);
+  void downloadAoASheetsAsXlsx([{ name: "Birlestirme Raporu", rows }], fileName);
 }
 
 export function formatFileSize(bytes: number): string {

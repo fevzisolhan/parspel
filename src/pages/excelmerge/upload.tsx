@@ -20,7 +20,7 @@ export default function UploadPage({ files, onFilesChange }: UploadPageProps) {
       setLoading(true);
       setError(null);
       const newFiles: ExcelFile[] = [];
-      const validExtensions = [".xlsx", ".xls", ".xlsm", ".xlsb", ".csv", ".ods", ".json", ".xml"];
+      const validExtensions = [".xlsx", ".xlsm", ".csv", ".json", ".xml"];
 
       for (const file of Array.from(fileList)) {
         const ext = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
@@ -76,7 +76,7 @@ export default function UploadPage({ files, onFilesChange }: UploadPageProps) {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Dosya Yukle</h1>
         <p className="text-muted-foreground mt-1">
-          Excel (XLSX/XLS), CSV, JSON, XML formatindaki dosyalari yukleyin. Kurtarma dosyalari otomatik tespit edilir.
+          Excel (XLSX/XLSM), CSV, JSON, XML formatindaki dosyalari yukleyin. Kurtarma dosyalari otomatik tespit edilir.
         </p>
       </div>
 
@@ -96,7 +96,7 @@ export default function UploadPage({ files, onFilesChange }: UploadPageProps) {
           id="file-input"
           type="file"
           multiple
-          accept=".xlsx,.xls,.xlsm,.xlsb,.csv,.ods,.json,.xml"
+          accept=".xlsx,.xlsm,.csv,.json,.xml"
           className="hidden"
           onChange={onFileInput}
           data-testid="input-file"
@@ -110,7 +110,7 @@ export default function UploadPage({ files, onFilesChange }: UploadPageProps) {
               {dragging ? "Buraya birakabilirsiniz" : "Dosyalari surukleyin veya tiklayin"}
             </p>
             <p className="text-sm text-muted-foreground mt-1">
-              XLSX, XLS, CSV, JSON, XML, ODS desteklenir. Birden fazla dosya secilebilir.
+              XLSX, XLSM, CSV, JSON, XML desteklenir. Birden fazla dosya secilebilir.
             </p>
           </div>
           {loading && (
