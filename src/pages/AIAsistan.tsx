@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { formatMoney, genId } from '@/lib/utils-tr';
 import type { DB } from '@/types';
 import { loadConnConfig } from '@/lib/connConfig';
@@ -613,8 +613,17 @@ const QUICK_PROMPTS = [
   { label: 'ğŸ”´ Risk Analizi', prompt: 'İşletmemde şu an en büyük finansal riskler neler? Stok, alacak ve kasa açısından değerlendir.' },
 ];
 
+function escapeHtml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function MarkdownText({ text }: { text: string }) {
-  const html = text
+  const html = escapeHtml(text)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/^### (.+)$/gm, '<h4 style="color:#ff7043;font-size:0.9rem;margin:10px 0 4px;font-weight:700">$1</h4>')
     .replace(/^## (.+)$/gm, '<h3 style="color:#f1f5f9;font-size:1rem;margin:12px 0 6px;font-weight:800">$1</h3>')
@@ -699,7 +708,10 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
   const [pendingActions, setPendingActions] = useState<{ msgIdx: number; actions: DBAction[] } | null>(null);
   const [actionResult, setActionResult] = useState<{ msgIdx: number; success: boolean; msg: string } | null>(null);
   const actionMode: 'read-only' | 'manual' | 'auto' = !isAdminUser || !adminMode ? 'read-only' : autoApplyActions ? 'auto' : 'manual';
-  const context = buildContext(db, actionMode, maxAutoActions, stopOnViolation);
+  const context = useMemo(
+    () => buildContext(db, actionMode, maxAutoActions, stopOnViolation),
+    [db, actionMode, maxAutoActions, stopOnViolation]
+  );
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -899,11 +911,14 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
     const rateLimitMsg = (api: string) =>
       `âš ï¸ **${api} rate limit aşıldı** â€” çok fazla istek gönderildi.\n\nBirkaç dakika bekleyip tekrar deneyin. Bu sürede çevrimdışı mod aktif.`;
 
+
+    // Token tasarrufu: yalnizca son 10 mesaji API'ye gonder (bagiam sistem prompt'ta var)
+    const apiMessages = newMessages.slice(-10);
     if (claudeKey) {
       try {
         setApiStatus('claude');
         setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], source: 'claude' }; return u; });
-        await askClaude(newMessages, context, claudeKey, appendChunk);
+        await askClaude(apiMessages, context, claudeKey, appendChunk);
         if (autoSpeak) {
           setMessages(prev => { if (prev[prev.length-1]?.content) speak(prev[prev.length-1].content); return prev; });
         }
@@ -924,7 +939,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
       try {
         setApiStatus('gemini');
         setMessages(prev => { const u = [...prev]; u[u.length - 1] = { ...u[u.length - 1], source: 'gemini' }; return u; });
-        await askGemini(newMessages, context, geminiKey, appendChunk);
+        await askGemini(apiMessages, context, geminiKey, appendChunk);
         if (autoSpeak) {
           setMessages(prev => { if (prev[prev.length-1]?.content) speak(prev[prev.length-1].content); return prev; });
         }
@@ -1141,7 +1156,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
             {pendingActions.actions.map((a, i) => (
               <div key={i} style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: '0.85rem' }}>
-                  {a.type === 'sale' ? 'ğŸ›’' : a.type === 'kasa_gelir' ? 'ğŸ’š' : a.type === 'kasa_gider' ? 'ğŸ”´' : a.type === 'stok_guncelle' ? 'ğŸ“¦' : 'ğŸ’³'}
+                  {a.type === 'sale' ? 'ğŸ›’' : a.type === 'kasa_gelir' ? 'ğŸ’š' : a.type === 'kasa_gider' ? 'ğŸ”´' : a.type === 'stok_guncelle' ? 'ğŸ“¦' : a.type === 'urun_ekle' ? '➕' : a.type === 'cari_ekle' ? '👤 : 'ğŸ’³'}
                 </span>
                 <span style={{ color: '#e2e8f0', fontSize: '0.83rem', flex: 1 }}>{a.label}</span>
               </div>

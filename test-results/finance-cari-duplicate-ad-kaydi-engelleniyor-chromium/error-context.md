@@ -238,7 +238,7 @@ Call log:
                   - button "İptal" [ref=e223] [cursor=pointer]
       - button "🤖" [ref=e224]
       - button "+" [ref=e226]
-      - button "🐛" [ref=e227]
+      - button "⚠️" [ref=e227]
     - region "Notifications alt+T"
   - generic [ref=e228]: "0"
 ```

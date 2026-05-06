@@ -259,7 +259,7 @@ Call log:
                   - button "İptal" [ref=e238] [cursor=pointer]
       - button "🤖" [ref=e239]
       - button "+" [ref=e241]
-      - button "🐛" [ref=e242]
+      - button "💡" [ref=e242]
     - region "Notifications alt+T"
   - generic [ref=e243]: "0"
 ```

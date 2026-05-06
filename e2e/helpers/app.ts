@@ -115,8 +115,43 @@ export async function gotoApp(page: Page) {
   await expect(page).toHaveTitle(/Parspel/i);
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+const MODULE_GROUP: Record<string, string> = {
+  'Tedarikçi': 'Tedarik',
+  'Boruted': 'Tedarik',
+  'Cari': 'Finans',
+  'Kasa': 'Finans',
+  'Bütçe': 'Finans',
+  'Banka': 'Finans',
+  'Raporlar': 'Analiz',
+  'Ayarlar': 'Sistem',
+};
+
+async function ensureGroupOpen(page: Page, moduleLabel: string) {
+  const group = MODULE_GROUP[moduleLabel];
+  if (!group) return;
+  const toggle = page.getByRole('button', { name: new RegExp(`${escapeRegExp(group)}\\s+grubunu`, 'i') }).first();
+  if (await toggle.count()) {
+    const name = ((await toggle.textContent()) || '').toLowerCase();
+    if (name.includes('genislet')) {
+      await toggle.click();
+    }
+  }
+}
+
 export async function openModule(page: Page, label: string) {
-  await page.getByText(label, { exact: true }).first().click();
+  await ensureGroupOpen(page, label);
+
+  const buttonByName = page.getByRole('button', { name: new RegExp(`(^|\\s)${escapeRegExp(label)}(\\s|$)`, 'i') }).first();
+  if (await buttonByName.count()) {
+    await buttonByName.click();
+  } else {
+    await page.getByText(label, { exact: false }).first().click();
+  }
+
   await expect(page.getByRole('heading', { name: new RegExp(label, 'i') })).toBeVisible();
 }
 
