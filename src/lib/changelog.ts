@@ -20,6 +20,32 @@ export interface VersionEntry {
 
 export const CHANGELOG: VersionEntry[] = [
   {
+    version: '2.9.0',
+    date: '4 Mayıs 2026',
+    title: 'Quantum Link AI Panel & Kod Kalitesi',
+    summary: 'Quantum Link floating AI paneli eklendi. Android izinleri genişletildi. ESLint kuruldu, 14 kod hatası giderildi. TypeScript tip hataları düzeltildi. Açık temalar kaldırıldı.',
+    changes: [
+      { type: 'yeni', text: 'Quantum Link — her sayfadan erişilebilir floating AI panel (BrainCircuit ikonu)' },
+      { type: 'yeni', text: 'Quantum Link — Türkçe sesli komut (mikrofon) + TTS yanıt' },
+      { type: 'yeni', text: 'Quantum Link — kasa/stok/satış/alacak hızlı sorguları (offline)' },
+      { type: 'yeni', text: 'useDB analytics useMemo — revenue, profit, margin, growth, topProducts vb.' },
+      { type: 'yeni', text: 'ESLint kuruldu — @typescript-eslint + react-hooks kuralları' },
+      { type: 'yeni', text: 'requestPushPermission() — Firebase Cloud Messaging izni' },
+      { type: 'yeni', text: 'CHANGELOG.md — GitHub\'da okunabilir işlem geçmişi' },
+      { type: 'iyilestirme', text: 'AndroidManifest.xml — POST_NOTIFICATIONS, RECORD_AUDIO, CAMERA, depolama izinleri eklendi' },
+      { type: 'iyilestirme', text: 'README.md — tam uygulama haritası, izin tablosu, sürüm geçmişi' },
+      { type: 'iyilestirme', text: 'SoundSettings fonksiyonu SoundSettingsPanel olarak yeniden adlandırıldı (çakışma giderildi)' },
+      { type: 'iyilestirme', text: 'Toast.tsx emoji regex — misleading character class düzeltildi' },
+      { type: 'duzeltme', text: 'useDB.ts — productId undefined olduğunda analytics çökmesi düzeltildi' },
+      { type: 'duzeltme', text: 'useDB.ts — Firebase log template literal escape hatası düzeltildi' },
+      { type: 'duzeltme', text: 'utils-tr.ts — regex gereksiz escape karakterleri temizlendi' },
+      { type: 'duzeltme', text: '6 boş catch {} bloğu — açıklayıcı yorum eklendi (no-empty)' },
+      { type: 'duzeltme', text: 'fetchCurrentHash, updateHashInFirebase — kullanılmayan dead code kaldırıldı' },
+      { type: 'kaldirildi', text: 'Açık temalar kaldırıldı (Kartal, Siyah/Ak, Amber, Deniz, Çimen, Güneş, Beton, Kontrast)' },
+      { type: 'kaldirildi', text: 'Ayarlar\'dan açık/koyu mod toggle kaldırıldı' },
+    ],
+  },
+  {
     version: '2.0.0',
     date: '14 Nisan 2026',
     title: 'PARSPEL — Yeniden Doğuş',

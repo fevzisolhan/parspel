@@ -203,7 +203,7 @@ async function saveToFirebase(db: DB): Promise<void> {
     const ms = t.end({ version: db._version, ok: res.ok });
     if (res.ok) {
       emitSync('saved', `v${db._version} · ${ms}ms`);
-      logger.info('sync', `Firebase\'e kaydedildi`, { version: db._version, ms });
+      logger.info('sync', `Firebase'e kaydedildi`, { version: db._version, ms });
       // Her 10 versiyonda bir otomatik yedek al
       if ((db._version || 0) % 10 === 0 && db._version > 0) {
         saveBackupToFirebase(db).catch(() => {});

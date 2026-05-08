@@ -47,7 +47,7 @@ export function loadConnConfig(): ConnConfig {
   try {
     const raw = localStorage.getItem(CONN_KEY);
     if (raw) return { ...DEFAULT_CONN, ...JSON.parse(raw) };
-  } catch {}
+  } catch { /* localStorage okuma hatası */ }
   return { ...DEFAULT_CONN };
 }
 
