@@ -95,7 +95,7 @@ export default [
       'node_modules/**',
       'dist/**',
       'android/**',
-      'vy/**',
+      '.vscode/**',
       'scripts/**',
       '*.config.{js,ts}',
     ],
