@@ -174,42 +174,42 @@ function QuickSaleModal({ db, save, onClose }: { db: ReturnType<typeof useDB>['d
   };
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
+    <div className="quick-form-grid">
       <div>
-        <label style={fLbl}>Ürün *</label>
-        <select value={productId} onChange={e => setProductId(e.target.value)} style={fInp}>
+        <label className="quick-form-label">Ürün *</label>
+        <select value={productId} onChange={e => setProductId(e.target.value)} className="quick-form-input" aria-label="Ürün seçimi">
           <option value="">-- Ürün Seç --</option>
           {db.products.filter(p => !p.deleted && p.stock > 0).map(p => <option key={p.id} value={p.id}>{p.name} (Stok: {p.stock}, ₺{p.price})</option>)}
         </select>
       </div>
       <div>
-        <label style={fLbl}>{payment === 'cari' ? 'Müşteri (Cari ödeme için zorunlu) *' : 'Müşteri (opsiyonel)'}</label>
-        <select value={customerId} onChange={e => setCustomerId(e.target.value)} style={fInp}>
+        <label className="quick-form-label">{payment === 'cari' ? 'Müşteri (Cari ödeme için zorunlu) *' : 'Müşteri (opsiyonel)'}</label>
+        <select value={customerId} onChange={e => setCustomerId(e.target.value)} className="quick-form-input" aria-label="Müşteri seçimi">
           <option value="">-- Müşteri Seç --</option>
           {db.cari.filter(c => !c.deleted && c.type === 'musteri').map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div><label style={fLbl}>Adet</label><input type="number" value={qty} min={1} max={product?.stock || 999} onChange={e => setQty(parseInt(e.target.value) || 1)} style={fInp} /></div>
-        <div><label style={fLbl}>İskonto (₺)</label><input type="number" value={discount} min={0} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} style={fInp} /></div>
+      <div className="quick-form-grid-two">
+        <div><label className="quick-form-label">Adet</label><input type="number" value={qty} min={1} max={product?.stock || 999} onChange={e => setQty(parseInt(e.target.value) || 1)} className="quick-form-input" title="Satış adedi" placeholder="1" /></div>
+        <div><label className="quick-form-label">İskonto (₺)</label><input type="number" value={discount} min={0} onChange={e => setDiscount(parseFloat(e.target.value) || 0)} className="quick-form-input" title="İskonto tutarı" placeholder="0" /></div>
       </div>
       <div>
-        <label style={fLbl}>Ödeme</label>
-        <div style={{ display: 'flex', gap: 6 }}>
+        <label className="quick-form-label">Ödeme</label>
+        <div className="quick-payment-row">
           {(['nakit', 'kart', 'havale', 'cari'] as const).map(p => (
-            <button key={p} onClick={() => setPayment(p)} style={{ flex: 1, padding: '8px 4px', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600, fontSize: '0.8rem', background: payment === p ? '#ff5722' : 'rgba(255,255,255,0.05)', color: payment === p ? '#fff' : '#64748b' }}>{p}</button>
+            <button key={p} onClick={() => setPayment(p)} className={`quick-payment-btn ${payment === p ? 'active' : ''}`}>{p}</button>
           ))}
         </div>
       </div>
       {product && (
-        <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: 10, padding: '12px 14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <div className="quick-summary-box">
           <Row label="Ara Toplam" value={formatMoney(subtotal)} />
           {discount > 0 && <Row label="İskonto" value={`-${formatMoney(discount)}`} color="#ef4444" />}
           <Row label="TOPLAM" value={formatMoney(total)} color="#10b981" big />
           <Row label="Kâr" value={formatMoney(profit)} color={profit >= 0 ? '#10b981' : '#ef4444'} />
         </div>
       )}
-      <button onClick={handleSave} style={{ background: 'linear-gradient(135deg, #ff5722, #ff7043)', border: 'none', borderRadius: 12, color: '#fff', padding: '13px 0', fontWeight: 800, cursor: 'pointer', fontSize: '1rem', letterSpacing: '-0.01em' }}>
+      <button onClick={handleSave} className="quick-submit-btn quick-submit-sale">
         🛒 Hızlı Satış — {formatMoney(total)}
       </button>
     </div>
@@ -235,19 +235,19 @@ function QuickIncomeModal({ db, save, onClose, type }: { db: ReturnType<typeof u
   };
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
-      <div><label style={fLbl}>Tutar (₺) *</label><input type="number" value={amount} onChange={e => setAmount(e.target.value)} style={fInp} placeholder="0,00" autoFocus /></div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <div className="quick-form-grid">
+      <div><label className="quick-form-label">Tutar (₺) *</label><input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="quick-form-input" placeholder="0,00" autoFocus /></div>
+      <div className="quick-form-grid-two">
         <div>
-          <label style={fLbl}>Kasa</label>
-          <select value={kasa} onChange={e => setKasa(e.target.value)} style={fInp}>
+          <label className="quick-form-label">Kasa</label>
+          <select value={kasa} onChange={e => setKasa(e.target.value)} className="quick-form-input" aria-label="Kasa seçimi">
             {kasalar.map(k => <option key={k.id} value={k.id}>{k.icon} {k.name}</option>)}
           </select>
         </div>
-        <div><label style={fLbl}>Kategori</label><input value={category} onChange={e => setCategory(e.target.value)} style={fInp} placeholder="opsiyonel" /></div>
+        <div><label className="quick-form-label">Kategori</label><input value={category} onChange={e => setCategory(e.target.value)} className="quick-form-input" placeholder="opsiyonel" /></div>
       </div>
-      <div><label style={fLbl}>Açıklama</label><input value={description} onChange={e => setDescription(e.target.value)} style={fInp} placeholder="Açıklama..." /></div>
-      <button onClick={handleSave} style={{ background: type === 'gelir' ? 'linear-gradient(135deg, #059669, #10b981)' : 'linear-gradient(135deg, #dc2626, #ef4444)', border: 'none', borderRadius: 12, color: '#fff', padding: '13px 0', fontWeight: 800, cursor: 'pointer', fontSize: '1rem' }}>
+      <div><label className="quick-form-label">Açıklama</label><input value={description} onChange={e => setDescription(e.target.value)} className="quick-form-input" placeholder="Açıklama..." /></div>
+      <button onClick={handleSave} className={`quick-submit-btn ${type === 'gelir' ? 'quick-submit-income' : 'quick-submit-expense'}`}>
         💾 {type === 'gelir' ? 'Gelir Kaydet' : 'Gider Kaydet'}
       </button>
     </div>
@@ -269,24 +269,24 @@ function QuickProductModal({ db, save, onClose }: { db: ReturnType<typeof useDB>
   };
 
   return (
-    <div style={{ display: 'grid', gap: 14 }}>
-      <div><label style={fLbl}>Ürün Adı *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={fInp} autoFocus /></div>
+    <div className="quick-form-grid">
+      <div><label className="quick-form-label">Ürün Adı *</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="quick-form-input" autoFocus /></div>
       <div>
-        <label style={fLbl}>Kategori</label>
-        <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={fInp}>
+        <label className="quick-form-label">Kategori</label>
+        <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="quick-form-input" aria-label="Ürün kategorisi seçimi">
           {cats.length > 0
             ? cats.map(c => <option key={c.id} value={c.id}>{c.icon} {c.name}</option>)
             : [['soba','🔥 Soba'],['aksesuar','🔧 Aksesuar'],['yedek','⚙️ Yedek Parça'],['boru','🔩 Boru'],['pelet','🪵 Pelet']].map(([v,l]) => <option key={v} value={v}>{l}</option>)
           }
         </select>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-        <div><label style={fLbl}>Alış (₺)</label><input type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} style={fInp} /></div>
-        <div><label style={fLbl}>Satış (₺) *</label><input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} style={fInp} /></div>
-        <div><label style={fLbl}>Stok</label><input type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} style={fInp} /></div>
-        <div><label style={fLbl}>Min. Stok</label><input type="number" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} style={fInp} /></div>
+      <div className="quick-form-grid-two">
+        <div><label className="quick-form-label">Alış (₺)</label><input type="number" value={form.cost} onChange={e => setForm(f => ({ ...f, cost: e.target.value }))} className="quick-form-input" title="Ürünün alış fiyatı" placeholder="0" /></div>
+        <div><label className="quick-form-label">Satış (₺) *</label><input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: e.target.value }))} className="quick-form-input" title="Ürünün satış fiyatı" placeholder="0" /></div>
+        <div><label className="quick-form-label">Stok</label><input type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} className="quick-form-input" title="Mevcut stok miktarı" placeholder="0" /></div>
+        <div><label className="quick-form-label">Min. Stok</label><input type="number" value={form.minStock} onChange={e => setForm(f => ({ ...f, minStock: e.target.value }))} className="quick-form-input" title="Minimum stok eşiği" placeholder="5" /></div>
       </div>
-      <button onClick={handleSave} style={{ background: 'linear-gradient(135deg, #2563eb, #3b82f6)', border: 'none', borderRadius: 12, color: '#fff', padding: '13px 0', fontWeight: 800, cursor: 'pointer', fontSize: '1rem' }}>📦 Ürün Ekle</button>
+      <button onClick={handleSave} className="quick-submit-btn quick-submit-product">📦 Ürün Ekle</button>
     </div>
   );
 }
@@ -317,22 +317,20 @@ function GlobalSearch({ onNavigate, db, favoriteTabs }: { onNavigate: (tab: TabI
   }, []);
 
   return (
-    <div ref={ref} style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
-      <div style={{ position: 'relative' }}>
-        <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: '#334155', fontSize: '0.85rem', pointerEvents: 'none' }}>🔍</span>
-        <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="Ürün, müşteri, modül ara..." style={{ width: '100%', padding: '8px 12px 8px 34px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, color: '#f1f5f9', fontSize: '0.85rem', boxSizing: 'border-box' }} />
-        {query && <button onClick={() => { setQuery(''); setOpen(false); }} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#475569', cursor: 'pointer', fontSize: '1rem', lineHeight: 1 }}>×</button>}
+    <div ref={ref} className="global-search-wrap">
+      <div className="global-search-inner">
+        <span className="global-search-icon">🔍</span>
+        <input value={query} onChange={e => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="Ürün, müşteri, modül ara..." className="global-search-input" />
+        {query && <button onClick={() => { setQuery(''); setOpen(false); }} className="global-search-clear">×</button>}
       </div>
       {open && results.length > 0 && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, background: '#0f1e35', border: '1px solid rgba(255,255,255,0.09)', borderRadius: 12, zIndex: 200, overflow: 'hidden', boxShadow: '0 20px 60px rgba(0,0,0,0.6)' }}>
+        <div className="global-search-results">
           {results.map((r, i) => (
-            <button key={i} onClick={() => { onNavigate(r.tab); setQuery(''); setOpen(false); }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'none', border: 'none', color: '#f1f5f9', cursor: 'pointer', textAlign: 'left', borderBottom: i < results.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
-              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,87,34,0.08)'}
-              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.background = 'none'}>
-              <span style={{ width: 28, height: 28, background: 'rgba(255,255,255,0.06)', borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', flexShrink: 0 }}>{r.icon}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</div>
-                <div style={{ fontSize: '0.72rem', color: '#475569' }}>{r.match}</div>
+            <button key={i} onClick={() => { onNavigate(r.tab); setQuery(''); setOpen(false); }} className="global-search-item">
+              <span className="global-search-item-icon">{r.icon}</span>
+              <div className="global-search-item-main">
+                <div className="global-search-item-label">{r.label}</div>
+                <div className="global-search-item-match">{r.match}</div>
               </div>
             </button>
           ))}
@@ -355,48 +353,29 @@ function UserMenu({ username, onLogout, isMobile }: { username?: string; onLogou
   };
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="user-menu-root">
       <button
         onClick={() => setOpen(o => !o)}
-        style={{
-          background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 9, color: '#94a3b8', padding: isMobile ? '7px 9px' : '6px 12px',
-          cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600,
-          display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s',
-          whiteSpace: 'nowrap',
-        }}
-        onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
-        onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+        className={`user-menu-toggle ${isMobile ? 'mobile' : ''}`}
       >
         👤 {!isMobile && (username || 'Kullanıcı')}
       </button>
 
       {open && (
         <>
-          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 299 }} />
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 300,
-            background: 'linear-gradient(135deg, #0d1f38, #080f1e)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14,
-            minWidth: 180, overflow: 'hidden',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-            animation: 'scaleIn 0.15s ease',
-          }}>
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', color: '#64748b', fontSize: '0.78rem' }}>
-              <div style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '0.88rem' }}>👤 {username || 'Kullanıcı'}</div>
-              <div style={{ marginTop: 2 }}>Oturum açık</div>
+          <div onClick={() => setOpen(false)} className="user-menu-backdrop" />
+          <div className="user-menu-panel">
+            <div className="user-menu-head">
+              <div className="user-menu-name">👤 {username || 'Kullanıcı'}</div>
+              <div className="user-menu-status">Oturum açık</div>
             </div>
             <button
               onClick={() => { setOpen(false); onLogout(); }}
-              style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', textAlign: 'left', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, transition: 'background 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              className="user-menu-action logout"
             >🚪 Oturumu Kapat</button>
             <button
               onClick={() => { setOpen(false); exitApp(); }}
-              style={{ width: '100%', padding: '12px 16px', background: 'none', border: 'none', borderTop: '1px solid rgba(255,255,255,0.05)', color: '#64748b', cursor: 'pointer', textAlign: 'left', fontSize: '0.88rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, transition: 'background 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.04)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              className="user-menu-action close"
             >✕ Uygulamayı Kapat</button>
           </div>
         </>
@@ -644,42 +623,24 @@ function AIDrawer({ open, onClose, db, save }: { open: boolean; onClose: () => v
       {/* Backdrop */}
       <div
         onClick={onClose}
-        style={{
-          position: 'fixed', inset: 0, zIndex: 1100,
-          background: 'rgba(5,10,20,0.65)', backdropFilter: 'blur(6px)',
-          opacity: open ? 1 : 0,
-          pointerEvents: open ? 'auto' : 'none',
-          transition: 'opacity 0.25s ease',
-        }}
+        className={`ai-drawer-backdrop ${open ? 'open' : ''}`}
       />
       {/* Drawer panel */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0,
-        width: 'min(520px, 100vw)', zIndex: 1101,
-        background: 'linear-gradient(160deg, #0d1b30 0%, #0a1422 100%)',
-        borderLeft: '1px solid rgba(99,102,241,0.25)',
-        boxShadow: '-20px 0 60px rgba(0,0,0,0.5)',
-        display: 'flex', flexDirection: 'column',
-        transform: open ? 'translateX(0)' : 'translateX(100%)',
-        transition: 'transform 0.28s cubic-bezier(0.22,1,0.36,1)',
-        visibility: open ? 'visible' : 'hidden',
-      }}>
+      <div className={`ai-drawer-panel ${open ? 'open' : ''}`}>
         {/* Drawer header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 20px', borderBottom: '1px solid rgba(99,102,241,0.15)', flexShrink: 0 }}>
-          <div style={{ width: 38, height: 38, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', boxShadow: '0 4px 16px rgba(99,102,241,0.4)', flexShrink: 0 }}>🤖</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800, color: '#f1f5f9', fontSize: '0.95rem' }}>Soba AI Asistan</div>
-            <div style={{ color: '#475569', fontSize: '0.72rem' }}>Claude · Gemini · Çevrimdışı</div>
+        <div className="ai-drawer-header">
+          <div className="ai-drawer-badge">🤖</div>
+          <div className="ai-drawer-head-main">
+            <div className="ai-drawer-title">Soba AI Asistan</div>
+            <div className="ai-drawer-subtitle">Claude · Gemini · Çevrimdışı</div>
           </div>
           <button
             onClick={onClose}
-            style={{ background: 'rgba(255,255,255,0.06)', border: 'none', color: '#64748b', cursor: 'pointer', width: 32, height: 32, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', transition: 'all 0.15s', flexShrink: 0 }}
-            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)'; (e.currentTarget as HTMLButtonElement).style.color = '#ef4444'; }}
-            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)'; (e.currentTarget as HTMLButtonElement).style.color = '#64748b'; }}
+            className="ai-drawer-close"
           >×</button>
         </div>
         {/* AIAsistan content — her zaman mount, sadece visibility değişir (konuşma korunur) */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+        <div className="ai-drawer-content">
           <AIAsistan db={db} save={save} embedded />
         </div>
       </div>
@@ -1430,8 +1391,6 @@ export default function App() {
   );
 }
 
-const fLbl: React.CSSProperties = { display: 'block', marginBottom: 6, color: '#64748b', fontSize: '0.82rem', fontWeight: 600 };
-const fInp: React.CSSProperties = { width: '100%', padding: '10px 14px', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, color: '#f1f5f9', fontSize: '0.9rem', boxSizing: 'border-box' };
 
 function Row({ label, value, color, big }: { label: string; value: string; color?: string; big?: boolean }) {
   return (
