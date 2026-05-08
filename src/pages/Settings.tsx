@@ -8,51 +8,19 @@ import { exportToExcel } from '@/lib/excelExport';
 import type { DB } from '@/types';
 import { formatDate } from '@/lib/utils-tr';
 import { hashPassword as hashPass } from '@/lib/userManager';
-import { loadUsers, saveUsers, createUser, updateUserPassword, toggleUserActive, deleteUser, updateUserRole, getUserSession, type AppUser, type UserRole } from '@/lib/userManager';
+import { loadUsers, createUser, updateUserPassword, toggleUserActive, deleteUser, updateUserRole, getUserSession, type AppUser, type UserRole } from '@/lib/userManager';
 import { loadUIPrefs, saveUIPrefs, applyUIPrefs, THEMES, DEFAULT_PREFS, type UIPrefs } from '@/hooks/useUIPrefs';
-import { loadConnConfig, saveConnConfig, testFirebase, testSupabase, getFirebaseDocUrl, DEFAULT_CONN, type ConnConfig } from '@/lib/connConfig';
+import { loadConnConfig, saveConnConfig, testFirebase, testSupabase, DEFAULT_CONN, type ConnConfig } from '@/lib/connConfig';
 import { saveBackupToFirebase } from '@/hooks/useDB';
 import { mergeRestoreDB, type RestoreReport } from '@/hooks/useDB';
 import { SystemMap } from '@/components/SystemMap';
 import { CHANGELOG, CHANGE_TYPE_CONFIG } from '@/lib/changelog';
-import { loadAppConfig, saveAppConfig, validateVersion, APP_NAME, APP_SUBTITLE } from '@/lib/appConfig';
+import { loadAppConfig, saveAppConfig, validateVersion, APP_SUBTITLE } from '@/lib/appConfig';
 
 // Firebase auth config (parola Settings'ten de değiştirilebilir)
 const FIREBASE_PROJECT = 'pars-001-bae2d';
 const FIREBASE_API_KEY = 'AIzaSyDxr7PNnh_-kt04sX2VcwER8coM2UWPg5k';
-
-function getFirebaseAuthUrl(): string {
-  const cfg = loadConnConfig();
-  const projectId = cfg.firebase.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || FIREBASE_PROJECT;
-  const apiKey = cfg.firebase.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || FIREBASE_API_KEY;
-  if (!projectId || !apiKey) return '';
-  return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/auth?key=${apiKey}`;
-}
-
-async function fetchCurrentHash(): Promise<string | null> {
-  const url = getFirebaseAuthUrl();
-  if (!url) return null;
-  try {
-    const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json?.fields?.hash?.stringValue ?? null;
-  } catch { return null; }
-}
-
-async function updateHashInFirebase(hash: string): Promise<boolean> {
-  const url = getFirebaseAuthUrl();
-  if (!url) return false;
-  try {
-    const res = await fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { hash: { stringValue: hash }, updatedAt: { stringValue: new Date().toISOString() } } }),
-      signal: AbortSignal.timeout(8000),
-    });
-    return res.ok;
-  } catch { return false; }
-}
+const FIREBASE_AUTH_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT}/databases/(default)/documents/config/auth?key=${FIREBASE_API_KEY}`;
 
 interface Props { db: DB; save: (fn: (prev: DB) => DB) => void; exportJSON: () => void; importJSON: (f: File) => Promise<boolean>; }
 
@@ -94,7 +62,7 @@ function saveSoundSettingsToStorage(settings: SoundSettings) {
     const parsed = raw ? JSON.parse(raw) : {};
     parsed.soundSettings = settings;
     localStorage.setItem('sobaYonetim', JSON.stringify(parsed));
-  } catch {}
+  } catch { /* localStorage yazma hatası — sessizce geç */ }
 }
 
 export default function Settings({ db, save, exportJSON, importJSON }: Props) {
@@ -214,7 +182,7 @@ export default function Settings({ db, save, exportJSON, importJSON }: Props) {
       )}
 
       {tab === 'sound' && (
-        <SoundSettings playSound={playSound} />
+        <SoundSettingsPanel playSound={playSound} />
       )}
 
       {tab === 'backup' && (
@@ -568,7 +536,7 @@ function AdminPanel({ showToast }: { showToast: (msg: string, type?: 'success' |
   );
 }
 
-function SoundSettings({ playSound }: { playSound: (type: SoundType) => void }) {
+function SoundSettingsPanel({ playSound }: { playSound: (type: SoundType) => void }) {
   const [settings, setSettings] = useState<SoundSettings>(loadSoundSettings);
   const [speechEnabled, setSpeechEnabled] = useState<boolean>(() => {
     try {
@@ -1509,7 +1477,7 @@ function SmartImportManager({ db, save: _save, showToast, showConfirm }: {
           company: current.company || {}, settings: {}, pelletSettings: { gramaj: 14, kgFiyat: 6.5, cuvalKg: 15, critDays: 3 },
           ortakEmanetler: [], installments: [],
         };
-        let finalData: Record<string, unknown> = { ...def, ...mapped };
+        const finalData: Record<string, unknown> = { ...def, ...mapped };
 
         const conflictEntities = ['products', 'cari', 'suppliers', 'sales'] as const;
         conflictEntities.forEach(entity => {
@@ -1982,20 +1950,10 @@ function BaglantiAyarlari({ cfg, onChange, showToast }: {
   onChange: (c: ConnConfig) => void;
   showToast: (m: string, t?: string) => void;
 }) {
-  type EndpointDiag = {
-    key: string;
-    label: string;
-    status: 'ok' | 'warn' | 'error';
-    http: string;
-    detail: string;
-  };
-
   const [fbTest, setFbTest] = useState<{ ok: boolean; msg: string } | null>(null);
   const [fbTesting, setFbTesting] = useState(false);
   const [sbTest, setSbTest] = useState<{ ok: boolean; msg: string } | null>(null);
   const [sbTesting, setSbTesting] = useState(false);
-  const [diagTesting, setDiagTesting] = useState(false);
-  const [diagRows, setDiagRows] = useState<EndpointDiag[]>([]);
 
   const setFb = (patch: Partial<typeof cfg.firebase>) =>
     onChange({ ...cfg, firebase: { ...cfg.firebase, ...patch } });
@@ -2021,65 +1979,6 @@ function BaglantiAyarlari({ cfg, onChange, showToast }: {
   const handleSave = () => {
     saveConnConfig(cfg);
     showToast('Bağlantı ayarları kaydedildi! Sayfa yenilendiğinde aktif olur.', 'success');
-  };
-
-  const classifyHttp = (status: number): { status: 'ok' | 'warn' | 'error'; detail: string } => {
-    if (status === 200 || status === 404) return { status: 'ok', detail: 'Erişim başarılı' };
-    if (status === 401) return { status: 'error', detail: '401 Yetkisiz — API key geçersiz olabilir' };
-    if (status === 403) return { status: 'error', detail: '403 Yasak — Firestore kuralı veya API key kısıtı' };
-    if (status >= 500) return { status: 'warn', detail: `Sunucu hatası (${status})` };
-    return { status: 'warn', detail: `Beklenmeyen HTTP ${status}` };
-  };
-
-  const fetchDiag = async (label: string, url: string): Promise<EndpointDiag> => {
-    if (!url) {
-      return { key: label, label, status: 'error', http: '-', detail: 'URL üretilemedi (config eksik)' };
-    }
-    try {
-      const res = await fetch(url, { method: 'GET', cache: 'no-store', signal: AbortSignal.timeout(8000) });
-      const c = classifyHttp(res.status);
-      return { key: label, label, status: c.status, http: String(res.status), detail: c.detail };
-    } catch (e) {
-      return {
-        key: label,
-        label,
-        status: 'error',
-        http: 'NET',
-        detail: navigator.onLine ? `Ağ hatası: ${String(e).slice(0, 60)}` : 'İnternet kapalı',
-      };
-    }
-  };
-
-  const handleRunDiagnostics = async () => {
-    const projectId = cfg.firebase.projectId || import.meta.env.VITE_FIREBASE_PROJECT_ID || FIREBASE_PROJECT;
-    const apiKey = cfg.firebase.apiKey || import.meta.env.VITE_FIREBASE_API_KEY || FIREBASE_API_KEY;
-    const authUrl = projectId && apiKey
-      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/auth?key=${apiKey}`
-      : '';
-    const usersUrl = projectId && apiKey
-      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/users?key=${apiKey}`
-      : '';
-    const aiKeysUrl = projectId && apiKey
-      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/aikeys?key=${apiKey}`
-      : '';
-    const connUrl = projectId && apiKey
-      ? `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/config/connConfig?key=${apiKey}`
-      : '';
-
-    setDiagTesting(true);
-    setDiagRows([]);
-    const rows = await Promise.all([
-      fetchDiag('syncDoc', getFirebaseDocUrl(cfg.firebase)),
-      fetchDiag('users', usersUrl),
-      fetchDiag('auth', authUrl),
-      fetchDiag('aikeys', aiKeysUrl),
-      fetchDiag('connConfig', connUrl),
-    ]);
-    setDiagRows(rows);
-    setDiagTesting(false);
-
-    const hasBlocking = rows.some(r => r.status === 'error');
-    showToast(hasBlocking ? 'Tanı tamamlandı: kritik bağlantı hataları var' : 'Tanı tamamlandı: kritik hata yok', hasBlocking ? 'error' : 'success');
   };
 
   const handleReset = () => {
@@ -2227,34 +2126,6 @@ function BaglantiAyarlari({ cfg, onChange, showToast }: {
           )}
         </div>
 
-        <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(15,23,42,0.35)', border: '1px solid rgba(148,163,184,0.18)', borderRadius: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: '0.95rem' }}>🩺</span>
-            <div style={{ color: '#cbd5e1', fontWeight: 700, fontSize: '0.83rem' }}>Bağlantı Tanı Paneli</div>
-            <button
-              onClick={handleRunDiagnostics}
-              disabled={diagTesting || !cfg.firebase.projectId || !cfg.firebase.apiKey}
-              style={{ marginLeft: 'auto', padding: '7px 12px', background: 'rgba(99,102,241,0.14)', border: '1px solid rgba(99,102,241,0.28)', borderRadius: 8, color: '#a5b4fc', fontWeight: 700, fontSize: '0.76rem', cursor: 'pointer', opacity: (!cfg.firebase.projectId || !cfg.firebase.apiKey) ? 0.45 : 1 }}
-            >
-              {diagTesting ? 'Çalışıyor...' : 'Detaylı Tanı Çalıştır'}
-            </button>
-          </div>
-
-          {diagRows.length === 0 ? (
-            <div style={{ color: '#64748b', fontSize: '0.76rem' }}>Her endpoint için HTTP sonucu görmek için tanı çalıştırın.</div>
-          ) : (
-            <div style={{ display: 'grid', gap: 7 }}>
-              {diagRows.map(r => (
-                <div key={r.key} style={{ display: 'grid', gridTemplateColumns: '120px 64px 1fr', gap: 8, alignItems: 'center', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: '7px 9px', border: `1px solid ${r.status === 'ok' ? 'rgba(16,185,129,0.25)' : r.status === 'warn' ? 'rgba(245,158,11,0.25)' : 'rgba(239,68,68,0.25)'}` }}>
-                  <div style={{ color: '#e2e8f0', fontSize: '0.74rem', fontWeight: 700 }}>{r.label}</div>
-                  <div style={{ color: r.status === 'ok' ? '#10b981' : r.status === 'warn' ? '#f59e0b' : '#ef4444', fontSize: '0.74rem', fontWeight: 800 }}>HTTP {r.http}</div>
-                  <div style={{ color: '#94a3b8', fontSize: '0.74rem' }}>{r.detail}</div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Nasıl alınır? */}
         <details style={{ marginTop: 14 }}>
           <summary style={{ color: '#475569', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }}>📖 Firebase bilgilerini nereden alırım?</summary>
@@ -2372,31 +2243,14 @@ function ArayuzAyarlari({ prefs, onChange, showToast }: {
     <div style={{ display: 'grid', gap: 16 }}>
 
       {/* Hazır Temalar */}
-      <Card title="🎨 Hazır Temalar">
-        {/* Açık/Koyu mod toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: 12, border: '1px solid rgba(255,255,255,0.07)' }}>
-          <span style={{ fontSize: '1.1rem' }}>{prefs.lightMode ? '☀️' : '🌙'}</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--text-primary)' }}>{prefs.lightMode ? 'Açık Tema' : 'Koyu Tema'}</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{prefs.lightMode ? 'Ferah ve aydınlık görünüm' : 'Göz yormayan karanlık görünüm'}</div>
-          </div>
-          <div
-            onClick={() => set({ lightMode: !prefs.lightMode })}
-            style={{ width: 48, height: 26, borderRadius: 13, background: prefs.lightMode ? 'var(--accent)' : 'rgba(255,255,255,0.1)', position: 'relative', cursor: 'pointer', transition: 'background 0.2s', flexShrink: 0 }}
-          >
-            <div style={{ position: 'absolute', top: 3, left: prefs.lightMode ? 25 : 3, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }} />
-          </div>
-        </div>
-
-        {/* Koyu temalar */}
-        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>🌙 Koyu Temalar</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8, marginBottom: 16 }}>
-          {THEMES.filter(t => !t.light).map(t => {
-            const isActive = prefs.accent === t.accent && prefs.bgBase === t.bg && !prefs.lightMode;
+      <Card title="🎨 Temalar">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
+          {THEMES.map(t => {
+            const isActive = prefs.accent === t.accent && prefs.bgBase === t.bg;
             return (
               <button
                 key={t.id}
-                onClick={() => { set({ accent: t.accent, bgBase: t.bg, lightMode: false }); showToast(`${t.label} teması uygulandı!`, 'success'); }}
+                onClick={() => { set({ accent: t.accent, bgBase: t.bg }); showToast(`${t.label} teması uygulandı!`, 'success'); }}
                 style={{ padding: '12px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', background: isActive ? `${t.accent}18` : 'rgba(0,0,0,0.3)', border: `2px solid ${isActive ? t.accent : 'rgba(255,255,255,0.07)'}`, transition: 'all 0.15s', position: 'relative', overflow: 'hidden' }}
               >
                 <div style={{ display: 'flex', gap: 5, marginBottom: 7 }}>
@@ -2404,29 +2258,6 @@ function ArayuzAyarlari({ prefs, onChange, showToast }: {
                   <div style={{ width: 18, height: 18, borderRadius: 5, background: t.bg, border: '1px solid rgba(255,255,255,0.1)' }} />
                 </div>
                 <div style={{ fontWeight: 700, color: isActive ? t.accent : '#f1f5f9', fontSize: '0.82rem' }}>{t.label}</div>
-                <div style={{ color: '#475569', fontSize: '0.7rem', marginTop: 2 }}>{t.desc}</div>
-                {isActive && <div style={{ position: 'absolute', top: 7, right: 7, width: 16, height: 16, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#fff', fontWeight: 900 }}>✓</div>}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Açık temalar */}
-        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>☀️ Açık Temalar — Güneş Altında Okunabilir</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 8 }}>
-          {THEMES.filter(t => t.light).map(t => {
-            const isActive = prefs.accent === t.accent && prefs.bgBase === t.bg && prefs.lightMode;
-            return (
-              <button
-                key={t.id}
-                onClick={() => { set({ accent: t.accent, bgBase: t.bg, lightMode: true }); showToast(`${t.label} teması uygulandı!`, 'success'); }}
-                style={{ padding: '12px 10px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', background: isActive ? `${t.accent}18` : t.bg, border: `2px solid ${isActive ? t.accent : 'rgba(0,0,0,0.12)'}`, transition: 'all 0.15s', position: 'relative', overflow: 'hidden' }}
-              >
-                <div style={{ display: 'flex', gap: 5, marginBottom: 7 }}>
-                  <div style={{ width: 18, height: 18, borderRadius: 5, background: t.accent, boxShadow: `0 0 6px ${t.accent}40` }} />
-                  <div style={{ width: 18, height: 18, borderRadius: 5, background: t.bg, border: '1px solid rgba(0,0,0,0.15)' }} />
-                </div>
-                <div style={{ fontWeight: 700, color: isActive ? t.accent : '#0f172a', fontSize: '0.82rem' }}>{t.label}</div>
                 <div style={{ color: '#475569', fontSize: '0.7rem', marginTop: 2 }}>{t.desc}</div>
                 {isActive && <div style={{ position: 'absolute', top: 7, right: 7, width: 16, height: 16, borderRadius: '50%', background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#fff', fontWeight: 900 }}>✓</div>}
               </button>

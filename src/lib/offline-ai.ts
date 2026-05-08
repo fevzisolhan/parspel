@@ -104,8 +104,7 @@ async function savePatterns(patterns: LearnedPattern): Promise<void> {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
-  } catch {
-  }
+  } catch { /* savePatterns: IndexedDB yazma hatası */ }
 }
 
 export async function learnFromUserAction(action: {
