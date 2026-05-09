@@ -142,17 +142,44 @@ async function ensureGroupOpen(page: Page, moduleLabel: string) {
   }
 }
 
+const MODULE_HEADING_FALLBACKS: Partial<Record<string, string[]>> = {
+  // smoke snapshot’ta başlık etiketlenmesi farklı gelebiliyor.
+  // Örn: Tedarikçi seçilince heading “Tedarik” görünebiliyor.
+  'Tedarikçi': ['Tedarik', 'Tedarikçi'],
+};
+
+function toHeadingRegexCandidates(label: string): RegExp[] {
+  const candidates = MODULE_HEADING_FALLBACKS[label] ?? [label];
+  // “heading” text’i farklı suffix/prefix içerebileceği için sadece içerik eşleştir.
+  return candidates.map((c) => new RegExp(c, 'i'));
+}
+
 export async function openModule(page: Page, label: string) {
   await ensureGroupOpen(page, label);
 
-  const buttonByName = page.getByRole('button', { name: new RegExp(`(^|\\s)${escapeRegExp(label)}(\\s|$)`, 'i') }).first();
+  const buttonByName = page.getByRole('button', {
+    name: new RegExp(`(^|\\s)${escapeRegExp(label)}(\\s|$)`, 'i'),
+  }).first();
+
   if (await buttonByName.count()) {
     await buttonByName.click();
   } else {
     await page.getByText(label, { exact: false }).first().click();
   }
 
-  await expect(page.getByRole('heading', { name: new RegExp(label, 'i') })).toBeVisible();
+  const candidates = toHeadingRegexCandidates(label);
+
+  // Heading kesin olarak gelene kadar yumuşak bekleme.
+  // Playwright'ta functor yerine doğrudan beklenti kullanmak daha stabil.
+  for (const r of candidates) {
+    const heading = page.getByRole('heading', { name: r }).first();
+    if (await heading.count()) {
+      await expect(heading).toBeVisible({ timeout: 5000 });
+      return;
+    }
+  }
+
+  throw new Error(`No visible heading found for module label: ${label}`);
 }
 
 export async function readDb(page: Page) {
