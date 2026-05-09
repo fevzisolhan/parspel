@@ -15,7 +15,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "⛔ Branch '${{ github.ref_name }}' creation is not allowed."
+          echo "⛔ '${{ github.ref_name }}' branch'i oluşturmak yasaktır."
+          echo "Bu proje yalnızca 'dev' branch'ini kullanır."
+          echo "'main' dahil tüm diğer branch'ler otomatik olarak silinir."
           echo "Tüm değişiklikler doğrudan 'dev' branch'ine push edilmelidir."
           gh api \
             --method DELETE \
