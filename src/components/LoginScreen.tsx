@@ -321,7 +321,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: AppUser, reme
         </div>
 
         <div style={{ textAlign: 'center', marginTop: 22, color: 'rgba(255,255,255,0.08)', fontSize: '0.7rem' }}>
-          Solhan Ticaret &copy; {new Date().getFullYear()} · Veriler Firebase'de güvenle saklanır
+          Solhan Ticaret &copy; {new Date().getFullYear()} · v3.0.0 · Veriler Firebase'de güvenle saklanır
         </div>
       </div>
     </div>
