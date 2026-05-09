@@ -1,24 +1,18 @@
 {
   "recommendations": [
-    // TypeScript & React
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
     "bradlc.vscode-tailwindcss",
     "formulahendry.auto-rename-tag",
-
-    // Git & Kod Kalitesi
     "eamodio.gitlens",
-    "usernamehw.errorlens",
     "streetsidesoftware.code-spell-checker",
-
-    // Geliştirici Deneyimi
     "christian-kohler.path-intellisense",
     "naumovs.color-highlight",
     "pkief.material-icon-theme",
     "aaron-bond.better-comments",
-
-    // Test
+    "github.vscode-github-actions",
+    "ms-playwright.playwright",
     "vitest.explorer",
-    "ms-playwright.playwright"
+    "usernamehw.errorlens"
   ]
 }
