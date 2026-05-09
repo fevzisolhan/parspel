@@ -5244,12 +5244,15 @@ function ArayuzAyarlari({
           }}
         >
           {THEMES.map((t) => {
-            const isActive = prefs.accent === t.accent && prefs.bgBase === t.bg;
+            const isActive =
+              prefs.accent === t.accent &&
+              prefs.bgBase === t.bg &&
+              prefs.lightMode === t.light;
             return (
               <button
                 key={t.id}
                 onClick={() => {
-                  set({ accent: t.accent, bgBase: t.bg });
+                  set({ accent: t.accent, bgBase: t.bg, lightMode: t.light });
                   showToast(`${t.label} teması uygulandı!`, "success");
                 }}
                 style={{

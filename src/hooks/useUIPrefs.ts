@@ -23,8 +23,8 @@ export interface UIPrefs {
 }
 
 export const DEFAULT_PREFS: UIPrefs = {
-  accent: '#ff5722',
-  bgBase: '#070e1c',
+  accent: '#22c55e',
+  bgBase: '#041512',
   fontScale: 1,
   animSpeed: 'normal',
   compactMode: false,
@@ -195,15 +195,15 @@ function adjustBrightness(hex: string, amount: number): string {
 
 // Hazır tema paketleri
 export const THEMES = [
-  // ── Koyu Temalar ──────────────────────────────────────────────────────────
-  { id: 'kor',       label: '🔥 Kor',        accent: '#ff5722', bg: '#070e1c', desc: 'Varsayılan — turuncu ateş',   light: false },
-  { id: 'okyanus',   label: '🌊 Okyanus',    accent: '#0ea5e9', bg: '#050f1a', desc: 'Derin mavi',                  light: false },
-  { id: 'orman',     label: '🌿 Orman',      accent: '#10b981', bg: '#061410', desc: 'Koyu yeşil',                  light: false },
-  { id: 'mor',       label: '💜 Mor',        accent: '#8b5cf6', bg: '#0a0714', desc: 'Derin mor',                   light: false },
-  { id: 'altin',     label: '✨ Altın',      accent: '#f59e0b', bg: '#0f0c04', desc: 'Amber altın',                 light: false },
-  { id: 'pembe',     label: '🌸 Pembe',      accent: '#ec4899', bg: '#0f0510', desc: 'Neon pembe',                  light: false },
-  { id: 'gri',       label: '🩶 Gri',        accent: '#94a3b8', bg: '#0a0f18', desc: 'Minimal gri',                 light: false },
-  { id: 'kirmizi',   label: '❤️ Kırmızı',   accent: '#ef4444', bg: '#0f0505', desc: 'Canlı kırmızı',               light: false },
-  { id: 'lacivert',  label: '🌌 Lacivert',   accent: '#6366f1', bg: '#0a0f18', desc: 'Koyu lacivert',               light: false },
-  { id: 'titan',     label: '⚙️ Titan',      accent: '#64748b', bg: '#0d1117', desc: 'Saf siyah — terminal',        light: false },
+  // Modern koyu temalar (oncelik sirasi)
+  { id: 'graphite',   label: 'Kurumsal Gece', accent: '#9ca3af', bg: '#0b1017', desc: 'Nötr ve profesyonel görünüm',   light: false },
+  { id: 'carbon',     label: 'Karbon',        accent: '#22c55e', bg: '#041512', desc: 'Canlı yeşil ve yüksek kontrast', light: false },
+  { id: 'midnight',   label: 'Gece Mavisi',   accent: '#38bdf8', bg: '#030d1a', desc: 'Temiz mavi tonlu koyu tema',     light: false },
+  { id: 'ember',      label: 'Kor Turuncu',   accent: '#f97316', bg: '#140a04', desc: 'Sıcak vurgu renkli modern tema', light: false },
+  { id: 'signal-red', label: 'Alarm Kırmızı', accent: '#ef4444', bg: '#150607', desc: 'Kritik ekranlar için güçlü vurgu', light: false },
+
+  // Modern acik temalar
+  { id: 'paper',      label: 'Beyaz Kağıt',   accent: '#0ea5e9', bg: '#f7fafc', desc: 'Aydınlık, sade ve net arayüz',   light: true },
+  { id: 'mint',       label: 'Nane',          accent: '#10b981', bg: '#f2fbf7', desc: 'Ferah açık yeşil ton',          light: true },
+  { id: 'sand',       label: 'Kum',           accent: '#d97706', bg: '#fffbf2', desc: 'Sıcak ve yumuşak açık görünüm', light: true },
 ] as const;
