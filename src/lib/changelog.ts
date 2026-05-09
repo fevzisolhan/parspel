@@ -20,6 +20,19 @@ export interface VersionEntry {
 
 export const CHANGELOG: VersionEntry[] = [
   {
+    version: '3.0.0',
+    date: '9 Mayıs 2026',
+    title: 'Release v3.0.0',
+    summary: 'Multi-agent orkestrasyonu, IndexedDB snapshot dayanıklılığı ve AI aksiyon fallback akışı eklendi. Canlı sürüm görünürlüğü iyileştirildi.',
+    changes: [
+      { type: 'yeni', text: 'Multi-agent altyapısı: bus, base agent, registry ve orchestrator eklendi' },
+      { type: 'yeni', text: 'Dexie tabanlı IndexedDB snapshot yazma/geri yükleme akışı eklendi' },
+      { type: 'iyilestirme', text: 'AI asistan aksiyonlarında fail-soft fallback zinciri uygulandı' },
+      { type: 'iyilestirme', text: 'Giriş ekranı sürüm etiketi v3.0.0 olarak görünür hale getirildi' },
+      { type: 'duzeltme', text: 'Anomali motorunda strict TypeScript uyumu için tip güvenliği düzeltmeleri yapıldı' },
+    ],
+  },
+  {
     version: '2.9.0',
     date: '4 Mayıs 2026',
     title: 'Quantum Link AI Panel & Kod Kalitesi',

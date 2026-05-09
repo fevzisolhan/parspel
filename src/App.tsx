@@ -1311,12 +1311,12 @@ function AppContent({
 
   // Son güncelleme toast'u — her versiyon için bir kez göster
   useEffect(() => {
-    const LATEST_VERSION = '2.9.0';
+    const LATEST_VERSION = '3.0.0';
     const seenKey = `parspel_update_seen_${LATEST_VERSION}`;
     try {
       if (!localStorage.getItem(seenKey)) {
         setTimeout(() => {
-          showToast(`🚀 v${LATEST_VERSION} — Quantum Link AI panel, ESLint taraması, 14 kod hatası düzeltildi`, 'info');
+          showToast(`🚀 v${LATEST_VERSION} — Multi-agent orkestrasyonu, IndexedDB snapshot ve fallback aksiyon akisi eklendi`, 'info');
           try { localStorage.setItem(seenKey, '1'); } catch { /* localStorage yazma hatası */ }
         }, 1500);
       }
@@ -1554,7 +1554,7 @@ function AppContent({
             <div className="app-sidebar-logo-icon">🔥</div>
             <div className="app-sidebar-logo-text-wrap">
               <div className="app-sidebar-logo-title">Soba Yönetim</div>
-              <div className="app-sidebar-logo-subtitle">Sistemi · v2.0</div>
+              <div className="app-sidebar-logo-subtitle">Sistemi · v3.0</div>
             </div>
             {isMobile && (
               <button
