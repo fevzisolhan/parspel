@@ -5,6 +5,7 @@ import { logger } from '@/lib/logger';
 import { loadConnConfig, getFirebaseDocUrl } from '@/lib/connConfig';
 import { validateTransaction } from '@/lib/ruleEngine';
 import { createAuditEntry, trimAuditLog } from '@/lib/auditEngine';
+import { indexedDb } from '@/db/indexeddb';
 
 // Firebase config — localStorage'dan dinamik olarak okunur
 function getFirebaseUrl(): string {
@@ -31,6 +32,30 @@ export function onSyncStatus(fn: SyncListener): () => void {
 export function getSyncStatus() { return _currentSyncStatus; }
 
 const STORAGE_KEY = 'sobaYonetim';
+const INDEXED_SNAPSHOT_KEY = 'primary';
+
+async function saveToIndexedSnapshot(db: DB): Promise<void> {
+  try {
+    await indexedDb.snapshots.put({
+      id: INDEXED_SNAPSHOT_KEY,
+      data: JSON.stringify(db),
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    logger.warn('db', 'IndexedDB snapshot yazılamadı', { error: String(e) });
+  }
+}
+
+async function loadFromIndexedSnapshot(): Promise<DB | null> {
+  try {
+    const snap = await indexedDb.snapshots.get(INDEXED_SNAPSHOT_KEY);
+    if (!snap?.data) return null;
+    return JSON.parse(snap.data) as DB;
+  } catch (e) {
+    logger.warn('db', 'IndexedDB snapshot okunamadı', { error: String(e) });
+    return null;
+  }
+}
 
 function makeDefaultDB(): DB {
   const nowIso = new Date().toISOString();
@@ -657,12 +682,25 @@ export function useDB() {
           local: localDb._version, cloud: cloudDb._version
         });
         saveToStorage(cloudDb);
+        void saveToIndexedSnapshot(cloudDb);
         setDb(cloudDb);
       } else {
         logger.info('db', 'Yerel veri güncel', { version: localDb._version });
       }
       emitSync('idle');
     });
+
+    // localStorage boşsa IndexedDB snapshot ile hızlı geri yükleme dene.
+    if (!localStorage.getItem(STORAGE_KEY)) {
+      void loadFromIndexedSnapshot().then((snap) => {
+        if (!snap) return;
+        saveToStorage(snap);
+        setDb(snap);
+        logger.info('db', 'IndexedDB snapshot geri yüklendi', {
+          version: snap._version,
+        });
+      });
+    }
     // Cleanup: unmount'ta pending Firebase sync'i iptal et
     return () => { if (syncTimer.current) clearTimeout(syncTimer.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -708,6 +746,7 @@ export function useDB() {
           _auditLog: trimAuditLog([entry, ...(prev._auditLog || [])]),
         };
         saveToStorage(auditOnly);
+        void saveToIndexedSnapshot(auditOnly);
         t.end({ version: prev._version, blocked: true });
         logger.warn('db', 'İşlem engellendi (block ihlali)', {
           violations: violations.filter(v => v.severity === 'block').map(v => v.ruleId),
@@ -721,6 +760,7 @@ export function useDB() {
         _auditLog: trimAuditLog([entry, ...(next._auditLog || [])]),
       };
       saveToStorage(withAudit);
+      void saveToIndexedSnapshot(withAudit);
       t.end({ version: withAudit._version, warned: hasWarn });
 
       // Debounce: 1.2 saniye bekle sonra Firebase'e gönder
@@ -804,6 +844,7 @@ export function useDB() {
           _auditLog: trimAuditLog([entry, ...(prev._auditLog || [])]),
         };
         saveToStorage(auditOnly);
+        void saveToIndexedSnapshot(auditOnly);
         logger.warn('db', 'saveGuarded: İşlem engellendi', {
           violations: violations.filter(v => v.severity === 'block').map(v => v.ruleId),
         });
@@ -816,6 +857,7 @@ export function useDB() {
         _auditLog: trimAuditLog([entry, ...(next._auditLog || [])]),
       };
       saveToStorage(withAudit);
+      void saveToIndexedSnapshot(withAudit);
       if (syncTimer.current) clearTimeout(syncTimer.current);
       syncTimer.current = setTimeout(() => {
         saveToFirebase(withAudit);
@@ -876,6 +918,7 @@ export function useDB() {
     const { db: data, report } = fullRestoreDB(restored, def);
     setDb(data);
     saveToStorage(data);
+    void saveToIndexedSnapshot(data);
     await saveToFirebase(data);
     return { ok: true, report };
   }, [db]);
@@ -890,6 +933,7 @@ export function useDB() {
           const { db: data } = fullRestoreDB(raw as DB, def);
           setDb(data);
           saveToStorage(data);
+          void saveToIndexedSnapshot(data);
           saveToFirebase(data);
           resolve(true);
         } catch {

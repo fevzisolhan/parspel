@@ -161,17 +161,21 @@ function abnormalAmountDetector(db: DB): AnomalyResult[] {
   db.sales
     .filter(s => !s.deleted && s.status === 'tamamlandi' && new Date(s.createdAt).getTime() >= thirtyDaysAgo && s.unitPrice > 0)
     .forEach(s => {
-      if (!productSales[s.productId]) productSales[s.productId] = [];
-      productSales[s.productId].push(s.unitPrice);
+      const productId = s.productId;
+      if (!productId) return;
+      if (!productSales[productId]) productSales[productId] = [];
+      productSales[productId].push(s.unitPrice);
     });
 
   // En az 3 satışı olan ürünlerde sapma kontrol et
   db.sales
     .filter(s => !s.deleted && s.status === 'tamamlandi' && s.unitPrice > 0)
     .forEach(s => {
-      const prices = productSales[s.productId];
+      const productId = s.productId;
+      if (!productId) return;
+      const prices = productSales[productId];
       if (!prices || prices.length < 3) return;
-      const avg = prices.reduce((a, b) => a + b, 0) / prices.length;
+      const avg = prices.reduce((a: number, b: number) => a + b, 0) / prices.length;
       const isHigh = s.unitPrice > avg * 3;
       const isLow = s.unitPrice < avg / 3;
       if (!isHigh && !isLow) return;

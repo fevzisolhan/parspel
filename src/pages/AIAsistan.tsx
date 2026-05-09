@@ -1,4 +1,5 @@
 ﻿import { useSpeechRecognition, useSpeechSynthesis } from "@/hooks/useSpeech";
+import { dispatchAgentFlow } from "@/agents/orchestrator";
 import { loadConnConfig } from "@/lib/connConfig";
 import { getUserSession } from "@/lib/userManager";
 import { formatMoney, genId } from "@/lib/utils-tr";
@@ -131,6 +132,221 @@ function validateAction(prev: DB, action: DBAction): string | null {
   }
 
   return null;
+}
+
+function findProductByRef(db: DB, payload: Record<string, unknown>) {
+  const idRef = String(payload.productId || "").trim();
+  const nameRef = String(payload.productName || "").trim();
+  if (idRef) {
+    const byId = db.products.find((p) => !p.deleted && p.id === idRef);
+    if (byId) return byId;
+  }
+  if (nameRef) {
+    const lowered = nameRef.toLowerCase();
+    const exact = db.products.find(
+      (p) => !p.deleted && p.name.toLowerCase() === lowered,
+    );
+    if (exact) return exact;
+    const candidates = db.products.filter(
+      (p) => !p.deleted && p.name.toLowerCase().includes(lowered),
+    );
+    if (candidates.length === 1) return candidates[0];
+  }
+  return null;
+}
+
+function findCariByRef(db: DB, payload: Record<string, unknown>) {
+  const idRef = String(payload.cariId || "").trim();
+  const nameRef = String(payload.cariName || "").trim();
+  if (idRef) {
+    const byId = db.cari.find((c) => !c.deleted && c.id === idRef);
+    if (byId) return byId;
+  }
+  if (nameRef) {
+    const lowered = nameRef.toLowerCase();
+    const exact = db.cari.find(
+      (c) => !c.deleted && c.name.toLowerCase() === lowered,
+    );
+    if (exact) return exact;
+    const candidates = db.cari.filter(
+      (c) => !c.deleted && c.name.toLowerCase().includes(lowered),
+    );
+    if (candidates.length === 1) return candidates[0];
+  }
+  return null;
+}
+
+function buildFallbackActions(
+  prev: DB,
+  action: DBAction,
+  reason: string,
+): DBAction[] {
+  const p = action.payload;
+
+  if (action.type === "sale") {
+    const product = findProductByRef(prev, p);
+    if (!product) return [];
+    const qty = Number(p.quantity);
+    const unitPrice = Number(p.unitPrice);
+    const candidates: DBAction[] = [];
+
+    if (String(p.productId || "") !== product.id) {
+      candidates.push({
+        ...action,
+        label: `${action.label} (fallback: ürün eşleştirildi)`,
+        payload: { ...p, productId: product.id, productName: product.name },
+      });
+    }
+
+    if (
+      (reason.includes("yetersiz stok") ||
+        (Number.isFinite(qty) && qty > product.stock)) &&
+      product.stock > 0
+    ) {
+      candidates.push({
+        ...action,
+        label: `${action.label} (fallback: stok kadar)`,
+        payload: {
+          ...p,
+          productId: product.id,
+          productName: product.name,
+          quantity: product.stock,
+        },
+      });
+    }
+
+    if (!Number.isFinite(qty) || qty <= 0) {
+      candidates.push({
+        ...action,
+        label: `${action.label} (fallback: miktar=1)`,
+        payload: {
+          ...p,
+          productId: product.id,
+          productName: product.name,
+          quantity: Math.min(Math.max(1, product.stock), 1),
+        },
+      });
+    }
+
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+      candidates.push({
+        ...action,
+        label: `${action.label} (fallback: birim fiyat düzeltildi)`,
+        payload: {
+          ...p,
+          productId: product.id,
+          productName: product.name,
+          unitPrice: product.price,
+        },
+      });
+    }
+    return candidates;
+  }
+
+  if (action.type === "stok_guncelle") {
+    const product = findProductByRef(prev, p);
+    if (!product) return [];
+    const stock = Number(p.stock);
+    return [
+      {
+        ...action,
+        label: `${action.label} (fallback: ürün/stok düzeltildi)`,
+        payload: {
+          ...p,
+          productId: product.id,
+          productName: product.name,
+          stock: Number.isFinite(stock) ? Math.max(0, stock) : product.stock,
+        },
+      },
+    ];
+  }
+
+  if (action.type === "cari_tahsilat") {
+    const cari = findCariByRef(prev, p);
+    if (!cari) return [];
+    const amount = Number(p.amount);
+    if (cari.balance <= 0) return [];
+    const safeAmount =
+      !Number.isFinite(amount) || amount <= 0
+        ? Math.min(1, cari.balance)
+        : Math.min(amount, cari.balance);
+    return [
+      {
+        ...action,
+        label: `${action.label} (fallback: cari/tutar düzeltildi)`,
+        payload: {
+          ...p,
+          cariId: cari.id,
+          cariName: cari.name,
+          amount: safeAmount,
+        },
+      },
+    ];
+  }
+
+  if (action.type === "kasa_gelir" || action.type === "kasa_gider") {
+    const amount = Number(p.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return [
+        {
+          ...action,
+          label: `${action.label} (fallback: tutar düzeltildi)`,
+          payload: { ...p, amount: Math.abs(amount) || 1 },
+        },
+      ];
+    }
+  }
+
+  return [];
+}
+
+type ActionAttemptResult = {
+  next: DB;
+  applied: boolean;
+  appliedAction?: DBAction;
+  notes: string[];
+};
+
+function applyActionWithFallback(
+  prev: DB,
+  action: DBAction,
+): ActionAttemptResult {
+  const queue: DBAction[] = [action];
+  const seen = new Set<string>();
+  const notes: string[] = [];
+
+  while (queue.length > 0 && seen.size < 12) {
+    const candidate = queue.shift()!;
+    const key = JSON.stringify({
+      type: candidate.type,
+      payload: candidate.payload,
+    });
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const violation = validateAction(prev, candidate);
+    if (violation) {
+      notes.push(`${candidate.label}: ${violation}`);
+      const fallbacks = buildFallbackActions(prev, candidate, violation);
+      for (const alt of fallbacks) queue.push(alt);
+      continue;
+    }
+
+    try {
+      const next = applyAction(prev, candidate);
+      if (candidate !== action) {
+        notes.push(`Fallback uygulandı: ${candidate.label}`);
+      }
+      return { next, applied: true, appliedAction: candidate, notes };
+    } catch (err: any) {
+      const reason = String(err?.message || "İşlem hatası");
+      notes.push(`${candidate.label}: ${reason}`);
+      const fallbacks = buildFallbackActions(prev, candidate, reason);
+      for (const alt of fallbacks) queue.push(alt);
+    }
+  }
+
+  return { next: prev, applied: false, notes };
 }
 
 // DB'ye işlemi uygula
@@ -1317,6 +1533,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
           let next = prev;
           let appliedCount = 0;
           const violations: string[] = [];
+          const fallbackNotes: string[] = [];
           const actionLimit = autoApplyActions
             ? Math.max(1, maxAutoActions)
             : Number.MAX_SAFE_INTEGER;
@@ -1327,14 +1544,35 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
               break;
             }
             const action = actions[i];
-            const violation = validateAction(next, action);
-            if (violation) {
-              violations.push(`${action.label}: ${violation}`);
+            const attempted = applyActionWithFallback(next, action);
+            if (attempted.applied) {
+              next = attempted.next;
+              appliedCount += 1;
+              const flow = dispatchAgentFlow(
+                (attempted.appliedAction || action) as Parameters<
+                  typeof dispatchAgentFlow
+                >[0],
+              );
+              fallbackNotes.push(
+                `AgentAkisi:${flow.join(" -> ")} (${action.label})`,
+              );
+              if (
+                attempted.appliedAction &&
+                attempted.appliedAction !== action
+              ) {
+                fallbackNotes.push(
+                  `${action.label} => ${attempted.appliedAction.label}`,
+                );
+              }
+            } else {
+              violations.push(
+                attempted.notes[0] || `${action.label}: İşlem uygulanamadı`,
+              );
+              if (attempted.notes.length > 1) {
+                fallbackNotes.push(...attempted.notes.slice(1));
+              }
               if (stopOnViolation) break;
-              continue;
             }
-            next = applyAction(next, action);
-            appliedCount += 1;
           }
 
           const aiLog = {
@@ -1345,6 +1583,9 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
               `Toplam:${actions.length}`,
               actions.map((a) => a.label).join(" | "),
               violations.length ? `İhlal:${violations.join(" ; ")}` : "",
+              fallbackNotes.length
+                ? `Fallback:${fallbackNotes.join(" ; ")}`
+                : "",
             ]
               .filter(Boolean)
               .join(" || "),
