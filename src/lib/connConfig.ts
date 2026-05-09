@@ -24,54 +24,92 @@ export interface ConnConfig {
 }
 
 const CONN_KEY = 'sobaConnConfig';
+const ENV_FB_PROJECT_ID = (import.meta.env.VITE_FIREBASE_PROJECT_ID ?? '').trim();
+const ENV_FB_API_KEY = (import.meta.env.VITE_FIREBASE_API_KEY ?? '').trim();
+const ENV_FB_DOC_PATH = (import.meta.env.VITE_FIREBASE_DOC_PATH ?? 'sync/main').trim();
+const HAS_FIREBASE_ENV = Boolean(ENV_FB_PROJECT_ID && ENV_FB_API_KEY);
 
 export const DEFAULT_CONN: ConnConfig = {
   firebase: {
-    enabled: true,
-    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
-    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || '',
-    docPath: import.meta.env.VITE_FIREBASE_DOC_PATH || 'sync/main',
+    enabled: HAS_FIREBASE_ENV,
+    projectId: ENV_FB_PROJECT_ID,
+    apiKey: ENV_FB_API_KEY,
+    docPath: ENV_FB_DOC_PATH || 'sync/main',
   },
   supabase: { enabled: false, url: '', anonKey: '', tableName: 'soba_sync' },
-  activeProvider: 'firebase',
+  activeProvider: HAS_FIREBASE_ENV ? 'firebase' : 'none',
 };
 
 // ── Yardımcı: default config'den Firebase URL oluştur ──────────────────────
-function getDefaultFirebaseUrl(path: string): string {
+function getDefaultFirebaseUrl(path: string): string | null {
   const { projectId, apiKey } = DEFAULT_CONN.firebase;
+  if (!projectId || !apiKey) return null;
   return `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${path}?key=${apiKey}`;
+}
+
+function normalizeConnConfig(cfg: ConnConfig): ConnConfig {
+  const hasCreds = Boolean(cfg.firebase?.projectId?.trim() && cfg.firebase?.apiKey?.trim());
+  const safeCfg: ConnConfig = {
+    ...DEFAULT_CONN,
+    ...cfg,
+    firebase: {
+      ...DEFAULT_CONN.firebase,
+      ...(cfg.firebase || {}),
+      enabled: cfg.firebase?.enabled === true && hasCreds,
+    },
+    supabase: {
+      ...DEFAULT_CONN.supabase,
+      ...(cfg.supabase || {}),
+    },
+    activeProvider: cfg.activeProvider,
+  };
+
+  if (safeCfg.activeProvider === 'firebase' && !safeCfg.firebase.enabled) {
+    safeCfg.activeProvider = 'none';
+  }
+
+  if (safeCfg.activeProvider !== 'firebase' && safeCfg.activeProvider !== 'supabase') {
+    safeCfg.activeProvider = 'none';
+  }
+
+  return safeCfg;
 }
 
 // ── localStorage fallback (hızlı senkron okuma) ────────────────────────────
 export function loadConnConfig(): ConnConfig {
   try {
     const raw = localStorage.getItem(CONN_KEY);
-    if (raw) return { ...DEFAULT_CONN, ...JSON.parse(raw) };
+    if (raw) return normalizeConnConfig(JSON.parse(raw));
   } catch { /* localStorage okuma hatası */ }
-  return { ...DEFAULT_CONN };
+  return normalizeConnConfig({ ...DEFAULT_CONN });
 }
 
 export function saveConnConfig(cfg: ConnConfig): void {
-  localStorage.setItem(CONN_KEY, JSON.stringify(cfg));
+  const safeCfg = normalizeConnConfig(cfg);
+  localStorage.setItem(CONN_KEY, JSON.stringify(safeCfg));
   // Arka planda Firebase'e de yaz
-  saveConnConfigToFirebase(cfg).catch(() => {});
+  if (safeCfg.activeProvider === 'firebase' && safeCfg.firebase.enabled) {
+    saveConnConfigToFirebase(safeCfg).catch(() => {});
+  }
 }
 
 // ── Firebase sync ──────────────────────────────────────────────────────────
 const CONN_FB_URL = getDefaultFirebaseUrl('config/connConfig');
 
 export async function loadConnConfigFromFirebase(): Promise<ConnConfig | null> {
+  if (!CONN_FB_URL) return null;
   try {
     const res = await fetch(CONN_FB_URL, { cache: 'no-store', signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
     const json = await res.json();
     const raw = json?.fields?.data?.stringValue;
     if (!raw) return null;
-    return { ...DEFAULT_CONN, ...JSON.parse(raw) };
+    return normalizeConnConfig(JSON.parse(raw));
   } catch { return null; }
 }
 
 export async function saveConnConfigToFirebase(cfg: ConnConfig): Promise<boolean> {
+  if (!CONN_FB_URL) return false;
   try {
     const res = await fetch(CONN_FB_URL, {
       method: 'PATCH',
