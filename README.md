@@ -2,6 +2,25 @@
 
 Soba satışı, stok, kasa ve cari takibini tek ekranda yöneten, offline-first çalışan bir işletme yönetim uygulaması.
 
+## Başlamadan Önce
+
+Bu projede geliştirmeye başlamadan önce aşağıdaki talimat dokümanını okuyun:
+
+- [PARSPEL Multi-Agent Geliştirme Talimatı](./PARSPEL_Multi_Agent_Gelistirme_Talimati.md)
+
+Bu doküman:
+- proje mimarisini,
+- agent yapısını,
+- öncelikleri,
+- test stratejisini,
+- riskleri,
+- uygulanacak geliştirme yaklaşımını tanımlar.
+
+Zorunlu başlangıç kuralı:
+- Yeni görev almadan önce bu dokümanı inceleyin.
+- Geliştirme kararlarını bu talimata göre verin.
+- Offline-first, IndexedDB, multi-agent yapı ve test disiplini temel kabul edilir.
+
 ## Özellikler
 
 - **Satış Yönetimi** — Nakit / kart / cari ödeme, kısmi tahsilat, iskonto, iade ve iptal
