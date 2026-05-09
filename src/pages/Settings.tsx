@@ -5267,25 +5267,75 @@ function ArayuzAyarlari({
                   overflow: "hidden",
                 }}
               >
-                <div style={{ display: "flex", gap: 5, marginBottom: 7 }}>
+                <div
+                  style={{
+                    height: 42,
+                    marginBottom: 8,
+                    borderRadius: 10,
+                    border: `1px solid ${t.light ? "rgba(15,23,42,0.08)" : "rgba(255,255,255,0.08)"}`,
+                    background: `linear-gradient(135deg, ${t.bg} 0%, ${t.accent} 100%)`,
+                    position: "relative",
+                    overflow: "hidden",
+                  }}
+                >
                   <div
                     style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 5,
-                      background: t.accent,
-                      boxShadow: `0 0 8px ${t.accent}60`,
+                      position: "absolute",
+                      top: -12,
+                      right: -10,
+                      width: 44,
+                      height: 44,
+                      borderRadius: "50%",
+                      background: "rgba(255,255,255,0.18)",
+                      filter: "blur(1px)",
                     }}
                   />
                   <div
                     style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: 5,
-                      background: t.bg,
-                      border: "1px solid rgba(255,255,255,0.1)",
+                      position: "absolute",
+                      bottom: -14,
+                      left: -8,
+                      width: 56,
+                      height: 30,
+                      borderRadius: 999,
+                      background: "rgba(0,0,0,0.16)",
                     }}
                   />
+                  <div
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      paddingLeft: 8,
+                      gap: 5,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: "rgba(255,255,255,0.92)",
+                      }}
+                    />
+                    <span
+                      style={{
+                        width: 20,
+                        height: 5,
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.62)",
+                      }}
+                    />
+                    <span
+                      style={{
+                        width: 12,
+                        height: 5,
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.35)",
+                      }}
+                    />
+                  </div>
                 </div>
                 <div
                   style={{
