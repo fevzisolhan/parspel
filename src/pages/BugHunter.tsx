@@ -73,6 +73,7 @@ class TestRunner {
         "Kullanici girisler parse edilirken NaN kontrolu yapilmali.",
         "Her parseFloat/parseInt sonrasi isNaN() kontrolu ekleyin.");
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((0 == ("" as any))) {
       this.addResult(cat, "Tip Guvenligi", "Loose Equality (==) Kullanimi", "warning",
         '0 == "" true doner', 3,
@@ -94,6 +95,7 @@ class TestRunner {
         "Fatura toplamlari, KDV hesaplamalari yanlis yuvarlanabilir.",
         "Math.round(num * 100) / 100 veya decimal.js kullanin.");
     }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const implicitConv2 = "5" + (3 as any);
     if (implicitConv2 === "53") {
       this.addResult(cat, "Tip Donusumu", "Implicit String/Number Donusumu", "critical",
@@ -286,6 +288,7 @@ class TestRunner {
        "Son kaydeden oncekinin degisikliklerini ezebilir.", "Optimistic locking ekleyin."],
     ] as const;
     checks.forEach(([sub, name, status, msg, sev, det, fix]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.addResult(cat, sub, name, status as any, msg, sev as any, det, fix);
     });
   }
@@ -351,6 +354,7 @@ class TestRunner {
        "100 musteri icin 100 ayri istek gidebilir.", "Batch API endpoint olusturun."],
     ] as const;
     checks.forEach(([sub, name, status, msg, sev, det, fix]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       this.addResult(cat, sub, name, status as any, msg, sev as any, det, fix);
     });
   }

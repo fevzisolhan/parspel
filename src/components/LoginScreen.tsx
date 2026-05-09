@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { logger } from '@/lib/logger';
 import {
   loginUser, getUserSession, setUserSession, clearUserSession,
-  loadUsers, createUser, type AppUser, type UserRole,
+  loadUsers, createUser, type AppUser,
 } from '@/lib/userManager';
 
 export { hashPassword as hashPass } from '@/lib/userManager';

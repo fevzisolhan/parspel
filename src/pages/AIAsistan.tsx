@@ -338,6 +338,7 @@ function applyActionWithFallback(
         notes.push(`Fallback uygulandı: ${candidate.label}`);
       }
       return { next, applied: true, appliedAction: candidate, notes };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       const reason = String(err?.message || "İşlem hatası");
       notes.push(`${candidate.label}: ${reason}`);
@@ -723,7 +724,7 @@ function offlineReply(db: DB, query: string): string {
       (p) => p.stock > 0 && p.stock <= p.minStock,
     );
     const stokDeger = activeProducts.reduce((s, p) => s + p.cost * p.stock, 0);
-    return `ğŸ“¦ **Stok Özeti**\n- Toplam ürün: ${activeProducts.length} | Stok değeri: ${formatMoney(stokDeger)}\n- Stok biten: ${out.length}${
+    return `📦 **Stok Ozeti**\n- Toplam urun: ${activeProducts.length} | Stok degeri: ${formatMoney(stokDeger)}\n- Stok biten: ${out.length}${
       out.length
         ? "\n  " +
           out
@@ -739,7 +740,7 @@ function offlineReply(db: DB, query: string): string {
             .map((p) => `â€¢ ${p.name} (${p.stock}/${p.minStock})`)
             .join("\n  ")
         : ""
-    }\n\nâš ï¸ *Çevrimdışı mod â€” derin analiz için internet gerekli*`;
+    }\n\n⚠️ *Cevrimdisi mod - derin analiz icin internet gerekli*`;
   }
   if (
     q.includes("kasa") ||
@@ -754,7 +755,7 @@ function offlineReply(db: DB, query: string): string {
       .filter((c) => !c.deleted && c.type === "tedarikci" && c.balance > 0)
       .reduce((s, c) => s + c.balance, 0);
     const netSermaye = kasaToplam + alacak - borc;
-    return `ğŸ’° **Kasa & Sermaye**\n- Nakit: ${formatMoney(nakit)}\n- Banka: ${formatMoney(banka)}\n- Toplam Kasa: ${formatMoney(kasaToplam)}\n- Müşteri Alacağı: ${formatMoney(alacak)}\n- Tedarikçi Borcu: ${formatMoney(borc)}\n- **Net Sermaye: ${formatMoney(netSermaye)}**\n\nâš ï¸ *Çevrimdışı mod*`;
+    return `💰 **Kasa ve Sermaye**\n- Nakit: ${formatMoney(nakit)}\n- Banka: ${formatMoney(banka)}\n- Toplam Kasa: ${formatMoney(kasaToplam)}\n- Musteri Alacagi: ${formatMoney(alacak)}\n- Tedarikci Borcu: ${formatMoney(borc)}\n- **Net Sermaye: ${formatMoney(netSermaye)}**\n\n⚠️ *Cevrimdisi mod*`;
   }
   if (
     q.includes("alacak") ||
@@ -793,13 +794,13 @@ function offlineReply(db: DB, query: string): string {
       })
       .filter((c) => c.days !== null && c.days >= 30)
       .sort((a, b) => (b.days ?? 0) - (a.days ?? 0));
-    return `ğŸ‘¤ **Cari & Alacak Özeti**\n- Toplam alacak: ${formatMoney(alacak)}\n- Alacaklı müşteri: ${topBorclu.length}\n\n**En Yüksek 5 Alacak:**\n${topBorclu.map((c) => `â€¢ ${c.name}: ${formatMoney(c.balance)}`).join("\n") || "Yok"}${
+    return `👤 **Cari ve Alacak Ozeti**\n- Toplam alacak: ${formatMoney(alacak)}\n- Alacakli musteri: ${topBorclu.length}\n\n**En Yuksek 5 Alacak:**\n${topBorclu.map((c) => `- ${c.name}: ${formatMoney(c.balance)}`).join("\n") || "Yok"}${
       overdue.length > 0
-        ? `\n\nâš ï¸ **Gecikmiş Alacaklar (30+ gün):**\n${overdue
+        ? `\n\n⚠️ **Gecikmis Alacaklar (30+ gun):**\n${overdue
             .slice(0, 5)
             .map(
               (c) =>
-                `â€¢ ${c.name}: ${formatMoney(c.balance)} â€” ${c.days} gün`,
+                `- ${c.name}: ${formatMoney(c.balance)} - ${c.days} gun`,
             )
             .join("\n")}`
         : ""
@@ -831,7 +832,7 @@ function offlineReply(db: DB, query: string): string {
     )
       .sort((a, b) => b[1] - a[1])
       .slice(0, 3);
-    return `ğŸ“Š **Bu Ay Satış Özeti**\n- ${monthSales.length} satış\n- Ciro: ${formatMoney(ciro)}\n- Kâr: ${formatMoney(kar)} (%${marj} marj)\n\n**Bu Ay Top 3 Ürün:**\n${topProducts.map(([n, v], i) => `${i + 1}. ${n}: ${formatMoney(v)}`).join("\n") || "Veri yok"}\n\nâš ï¸ *Çevrimdışı mod â€” karşılaştırmalı analiz için internet gerekli*`;
+    return `📊 **Bu Ay Satis Ozeti**\n- ${monthSales.length} satis\n- Ciro: ${formatMoney(ciro)}\n- Kar: ${formatMoney(kar)} (%${marj} marj)\n\n**Bu Ay Top 3 Urun:**\n${topProducts.map(([n, v], i) => `${i + 1}. ${n}: ${formatMoney(v)}`).join("\n") || "Veri yok"}\n\n⚠️ *Cevrimdisi mod - karsilastirmali analiz icin internet gerekli*`;
   }
   if (
     q.includes("risk") ||
@@ -848,18 +849,18 @@ function offlineReply(db: DB, query: string): string {
       .reduce((s, c) => s + c.balance, 0);
     const riskler: string[] = [];
     if (kasaToplam < 5000)
-      riskler.push(`ğŸ’¸ Kasa düşük: ${formatMoney(kasaToplam)}`);
-    if (out > 0) riskler.push(`ğŸ“¦ ${out} ürün stok bitti`);
-    if (low > 0) riskler.push(`âš ï¸ ${low} üründe az stok`);
+      riskler.push(`💸 Kasa dusuk: ${formatMoney(kasaToplam)}`);
+    if (out > 0) riskler.push(`📦 ${out} urunde stok bitti`);
+    if (low > 0) riskler.push(`⚠️ ${low} urunde az stok`);
     if (alacak > 50000)
-      riskler.push(`ğŸ’³ Yüksek alacak: ${formatMoney(alacak)}`);
+      riskler.push(`💳 Yuksek alacak: ${formatMoney(alacak)}`);
     if (db.orders.filter((o) => o.status === "bekliyor").length > 3)
       riskler.push(
-        `ğŸšš ${db.orders.filter((o) => o.status === "bekliyor").length} bekleyen sipariş`,
+        `🚚 ${db.orders.filter((o) => o.status === "bekliyor").length} bekleyen siparis`,
       );
-    return `ğŸ”´ **Kritik Durumlar**\n${riskler.length > 0 ? riskler.map((r, i) => `${i + 1}. ${r}`).join("\n") : "âœ… Kritik durum tespit edilmedi"}\n\nâš ï¸ *Çevrimdışı mod â€” detaylı analiz için internet gerekli*`;
+    return `🔴 **Kritik Durumlar**\n${riskler.length > 0 ? riskler.map((r, i) => `${i + 1}. ${r}`).join("\n") : "✅ Kritik durum tespit edilmedi"}\n\n⚠️ *Cevrimdisi mod - detayli analiz icin internet gerekli*`;
   }
-  return `ğŸ”Œ **Çevrimdışı Mod**\n\nİnternet bağlantısı olmadığından AI analizi yapılamıyor.\n\nSorabileceğiniz konular:\n- Stok durumu\n- Kasa & sermaye özeti\n- Müşteri alacakları\n- Bu ay satışlar\n- Kritik riskler`;
+  return `🔌 **Cevrimdisi Mod**\n\nInternet baglantisi olmadigindan AI analizi yapilamiyor.\n\nSorabileceginiz konular:\n- Stok durumu\n- Kasa ve sermaye ozeti\n- Musteri alacaklari\n- Bu ay satislar\n- Kritik riskler`;
 }
 
 // â”€â”€ Claude API (Anthropic direkt) â”€â”€
@@ -1152,11 +1153,11 @@ ${topProducts.map((p, i) => `${i + 1}. ${p.name}: ${formatMoney(p.ciro)} ciro, $
 - En yüksek 5 alacak: ${topBorclu.map((c) => `${c.name}(${formatMoney(c.balance)})`).join(", ") || "Yok"}
 ${
   overdueMusteri.length > 0
-    ? `- âš ï¸ GECİKMİÅ ALACAKLAR (30+ gün): ${overdueMusteri
+    ? `- ⚠️ GECIKMIS ALACAKLAR (30+ gun): ${overdueMusteri
         .slice(0, 5)
         .map((c) => `${c.name} ${c.days}gün ${formatMoney(c.balance)}`)
         .join(", ")}`
-    : "- âœ… Gecikmiş alacak yok"
+    : "- ✅ Gecikmis alacak yok"
 }
 
 ### ğŸ­ Tedarik
@@ -1179,13 +1180,13 @@ ${Object.entries(monthlyTrend)
   .join(" | ")}
 
 ---
-## ğŸ› ï¸ DB İÅLEM TALİMATLARI
+## 🛠️ DB ISLEM TALIMATLARI
 Aktif işlem modu: ${actionMode === "read-only" ? "READ_ONLY (sadece analiz)" : actionMode === "auto" ? "AUTO_EXECUTE (otomatik)" : "MANUAL_APPROVAL (onaylı)"}
 ${actionMode === "read-only" ? "READ_ONLY modundasın. Kesinlikle action bloğu üretme, sadece analiz ve öneri ver." : "İşlem gerekiyorsa action bloğu üretebilirsin."}
 AUTO mod aktifse tek yanıtta en fazla ${maxAutoActions} action üret.
 Kural ihlali davranışı: ${stopOnViolation ? "İhlalde durdur" : "İhlalli actionı atla ve devam et"}.
 Kullanıcı bir işlem yapmak istediğinde (satış, kasa, stok, tahsilat), yanıtının SONUNA aşağıdaki formatta bir action bloğu ekle.
-Sadece kullanıcı açıkça bir işlem yapmak istediğinde ekle â€” analiz/soru sorularında EKLEME.
+Sadece kullanici acikca bir islem yapmak istediginde ekle - analiz/soru sorularinda EKLEME.
 
 ### Satış kaydı:
 \`\`\`action
@@ -1610,6 +1611,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
           setPendingActions(null);
           setActionResult(null);
         }, 1200);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } catch (err: any) {
         setActionResult({
           msgIdx,
@@ -1640,6 +1642,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages, loading]);
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [keysLoaded, setKeysLoaded] = useState(false);
   const [hasKeys, setHasKeys] = useState(false);
   const [keyLoadError, setKeyLoadError] = useState(false);
@@ -1748,7 +1751,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
               {
                 role: "assistant",
                 content:
-                  "âš ï¸ Action üretildi ancak Yönetici Modu kapalı olduğu için DB yazma yapılmadı.",
+                  "⚠️ Action uretildi ancak Yonetici Modu kapali oldugu icin DB yazma yapilmadi.",
                 source: "offline",
               },
             ]);
@@ -1794,7 +1797,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
               updated.push({
                 role: "assistant",
                 content:
-                  "âš ï¸ Action üretildi ancak Yönetici Modu kapalı olduğu için DB yazma yapılmadı.",
+                  "⚠️ Action uretildi ancak Yonetici Modu kapali oldugu icin DB yazma yapilmadi.",
                 source: "offline",
               });
             } else if (autoApplyActions) {
@@ -1809,7 +1812,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
 
       // Rate limit hata mesajı oluştur
       const rateLimitMsg = (api: string) =>
-        `âš ï¸ **${api} rate limit aşıldı** â€” çok fazla istek gönderildi.\n\nBirkaç dakika bekleyip tekrar deneyin. Bu sürede çevrimdışı mod aktif.`;
+        `⚠️ **${api} rate limit asildi** - cok fazla istek gonderildi.\n\nBirkac dakika bekleyip tekrar deneyin. Bu surede cevrimdisi mod aktif.`;
 
       // Token tasarrufu: yalnizca son 10 mesaji API'ye gonder (bagiam sistem prompt'ta var)
       const apiMessages = newMessages.slice(-10);
@@ -1832,6 +1835,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
           finalizeResponse(newMessages.length);
           setLoading(false);
           return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
           const msg = String(e?.message || e || "");
           if (
@@ -1879,6 +1883,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
           finalizeResponse(newMessages.length);
           setLoading(false);
           return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         } catch (e: any) {
           const msg = String(e?.message || e || "");
           if (
@@ -2055,8 +2060,8 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
                   : keyAccessForbidden
                     ? "ℹ️ Firebase anahtar erişimi kısıtlı (403) — yerel/env anahtar kullanın"
                     : keyLoadError
-                      ? "âš ï¸ Anahtarlar yüklenemedi â€” âš™ï¸ ayarlara girin"
-                      : "âš ï¸ API anahtarı girilmemiş â€” âš™ï¸ ayarlara girin"}
+                      ? "⚠️ Anahtarlar yuklenemedi - Ayarlar'a girin"
+                      : "⚠️ API anahtari girilmemis - Ayarlar'a girin"}
             </p>
           </div>
           {/* Anlık özet */}
@@ -2567,7 +2572,7 @@ export default function AIAsistan({ db, save, embedded = false }: Props) {
             >
               {hasKeys
                 ? "Gerçek verilerinizi analiz ederek yanıt verir."
-                : "âš ï¸ âš™ï¸ Ayarlar'dan API anahtarını girin. İnternetsiz de temel sorulara yanıt verir."}
+                : "⚠️ Ayarlar'dan API anahtarini girin. Internetsiz de temel sorulara yanit verir."}
             </p>
           </div>
           <div

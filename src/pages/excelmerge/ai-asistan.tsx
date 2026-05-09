@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Network } from "@capacitor/network";
-import { Bot, Send, Wifi, WifiOff, Brain, Sparkles, RefreshCw, ChevronRight, AlertTriangle, CheckCircle, TrendingUp, Lightbulb } from "lucide-react";
+import { Send, Wifi, WifiOff, Brain, Sparkles, RefreshCw, ChevronRight, AlertTriangle, CheckCircle, TrendingUp, Lightbulb } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +63,7 @@ async function streamAIResponse(
           if (data.done) onDone();
           if (data.error) onError(data.error);
         } catch {
+          // stream'den gelen ara satirlar JSON olmayabilir
         }
       }
     }

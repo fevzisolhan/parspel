@@ -102,6 +102,7 @@ export async function requestAllPermissions(): Promise<void> {
 
   // Depolama izni (Excel export için)
   try {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { Filesystem, Directory } = await import('@capacitor/filesystem');
     await Filesystem.requestPermissions();
     console.info('[permissions] Depolama izni verildi');

@@ -409,12 +409,14 @@ async function listBackupsFromFirebase(): Promise<
     const json = await res.json();
     const docs = json.documents || [];
     return docs
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((doc: any) => ({
         id: doc.name?.split("/").pop() || "",
         version: parseInt(doc.fields?.version?.integerValue || "0"),
         label: doc.fields?.label?.stringValue || "",
         createdAt: doc.fields?.createdAt?.stringValue || "",
       }))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .sort((a: any, b: any) => b.version - a.version);
   } catch {
     return [];

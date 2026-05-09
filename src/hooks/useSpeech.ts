@@ -9,6 +9,7 @@ function isAndroid(): boolean {
 }
 
 function isCapacitor(): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return !!(window as any).Capacitor?.isNativePlatform?.();
 }
 
@@ -17,13 +18,17 @@ export function useSpeechRecognition(onResult: (text: string) => void) {
   const [listening, setListening] = useState(false);
   const [supported, setSupported] = useState(false);
   const [error, setError] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recRef = useRef<any>(null);
 
   useEffect(() => {
     // Android native'de Web Speech API çalışmaz ama kontrol edelim
     const SpeechRecognition =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).SpeechRecognition ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).webkitSpeechRecognition ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).mozSpeechRecognition;
     // Android'de desteklenmiyor olarak işaretle (WebView kısıtı)
     const androidNative = isCapacitor() && isAndroid();
@@ -39,7 +44,9 @@ export function useSpeechRecognition(onResult: (text: string) => void) {
     }
 
     const SpeechRecognition =
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).SpeechRecognition ||
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
@@ -67,6 +74,7 @@ export function useSpeechRecognition(onResult: (text: string) => void) {
 
     rec.onstart = () => { setListening(true); setError(''); };
     rec.onend = () => setListening(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onerror = (e: any) => {
       setListening(false);
       if (e.error === 'no-speech') setError('Ses algılanamadı, tekrar deneyin');
@@ -74,6 +82,7 @@ export function useSpeechRecognition(onResult: (text: string) => void) {
       else setError('Ses tanıma hatası: ' + e.error);
       setTimeout(() => setError(''), 3000);
     };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onresult = (e: any) => {
       const text = e.results[0][0].transcript;
       if (text.trim()) onResult(text.trim());

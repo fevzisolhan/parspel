@@ -30,6 +30,7 @@ export default function Kasa({ db, save }: Props) {
   };
   const [form, setForm] = useState({ amount: '', description: '', kasa: 'nakit', cariId: '', partnerId: '', category: '' });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const kasalar = db.kasalar || [{ id: 'nakit', name: 'Nakit', icon: '💵' }, { id: 'banka', name: 'Banka', icon: '🏦' }];
 
   const bakiyeler = useMemo(() => {

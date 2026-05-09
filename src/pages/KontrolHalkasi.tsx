@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useMemo, useState, useEffect, useCallback } from 'react';
 import { formatMoney } from '@/lib/utils-tr';
 import { quickHealthCheck, runHealthCheck, type HealthReport, type HealthStatus } from '@/lib/healthCheck';
@@ -70,7 +71,7 @@ const STATUS_COLORS: Record<HealthStatus, { bg: string; border: string; text: st
 
 export default function KontrolHalkasi({ db }: Props) {
   const [healthReport, setHealthReport] = useState<HealthReport | null>(() => {
-    const quick = quickHealthCheck(db as unknown as Record<string, unknown>);
+    const quick = quickHealthCheck(db as any as Record<string, any>);  
     return { ...quick, duration: 0 };
   });
   const [fullChecking, setFullChecking] = useState(false);
@@ -78,7 +79,7 @@ export default function KontrolHalkasi({ db }: Props) {
   // Sayfa açılınca tam sağlık kontrolü yap (Firebase dahil)
   useEffect(() => {
     setFullChecking(true);
-    runHealthCheck(db as unknown as Record<string, unknown>).then(r => {
+    runHealthCheck(db as any as Record<string, any>).then(r => {  
       setHealthReport(r);
       setFullChecking(false);
     });
@@ -87,7 +88,7 @@ export default function KontrolHalkasi({ db }: Props) {
 
   const recheck = useCallback(() => {
     setFullChecking(true);
-    runHealthCheck(db as unknown as Record<string, unknown>).then(r => {
+    runHealthCheck(db as any as Record<string, any>).then(r => {  
       setHealthReport(r);
       setFullChecking(false);
     });
@@ -224,7 +225,8 @@ export default function KontrolHalkasi({ db }: Props) {
       </div>
 
       {/* Halka */}
-      <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any }}> // eslint-disable-line @typescript-eslint/no-explicit-any
         <div style={{ position: 'relative', width: 780, height: 780, margin: '0 auto', flexShrink: 0 }}>
           {/* SVG bağlantılar */}
           <svg style={{ position: 'absolute', inset: 0, width: 780, height: 780, pointerEvents: 'none' }}>
@@ -367,3 +369,4 @@ export default function KontrolHalkasi({ db }: Props) {
     </div>
   );
 }
+

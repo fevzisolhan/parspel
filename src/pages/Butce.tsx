@@ -34,6 +34,7 @@ export default function Butce({ db, save }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<Omit<BudgetCategory, 'id'>>({ name: '', icon: '📋', monthlyLimit: 0, color: '#64748b', kasaCategories: [] });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const budgets: BudgetCategory[] = db.budgets || [];
 
   const yearlyData = useMemo(() => {

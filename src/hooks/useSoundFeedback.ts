@@ -159,6 +159,7 @@ let _globalCtx: AudioContext | null = null;
 function getOrCreateAudioContext(): AudioContext | null {
   try {
     if (!_globalCtx || _globalCtx.state === 'closed') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       _globalCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     return _globalCtx;
@@ -192,6 +193,7 @@ export function useSoundFeedback() {
       ctxRef.current = _globalCtx;
     } else if (!ctxRef.current || ctxRef.current.state === 'closed') {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ctxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
         _globalCtx = ctxRef.current;
       } catch {

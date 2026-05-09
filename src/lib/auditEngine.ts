@@ -7,10 +7,16 @@
  * Cloud Functions gerektirmez — tamamen client-side çalışır.
  */
 
-import type { DB, AuditEntry, AuditReport, AuditAnomaly, RuleViolation, KasaEntry } from '@/types';
-import { genId } from '@/lib/utils-tr';
-import { logger } from '@/lib/logger';
-import { TRANSACTION_LIMIT } from '@/lib/ruleEngine';
+import { logger } from "@/lib/logger";
+import { TRANSACTION_LIMIT } from "@/lib/ruleEngine";
+import { genId } from "@/lib/utils-tr";
+import type {
+  AuditAnomaly,
+  AuditEntry,
+  AuditReport,
+  DB,
+  RuleViolation,
+} from "@/types";
 
 /** _auditLog maksimum kayıt sayısı */
 const MAX_AUDIT_LOG = 500;
@@ -20,7 +26,7 @@ const BALANCE_DRIFT_TOLERANCE = 0.01;
 
 // ─── Session ID ───────────────────────────────────────────────────────────────
 
-const SESSION_KEY = 'parspel_audit_session_id';
+const SESSION_KEY = "parspel_audit_session_id";
 
 /**
  * Oturum başına bir kez üretilen UUID.
@@ -49,7 +55,7 @@ export function getSessionId(): string {
  */
 export function computeDiff(
   prevDB: DB,
-  nextDB: DB
+  nextDB: DB,
 ): { prevValue: Partial<DB>; nextValue: Partial<DB> } {
   try {
     const prevValue: Partial<DB> = {};
@@ -58,7 +64,7 @@ export function computeDiff(
     const keys = Object.keys(nextDB) as (keyof DB)[];
     for (const key of keys) {
       // _auditLog'u diff'e dahil etme — sonsuz döngü önlemi
-      if (key === '_auditLog') continue;
+      if (key === "_auditLog") continue;
 
       const prev = prevDB[key];
       const next = nextDB[key];
@@ -68,8 +74,10 @@ export function computeDiff(
         // Dizi ise sadece uzunluk değişimini kaydet (boyut optimizasyonu)
         if (Array.isArray(prev) && Array.isArray(next)) {
           if (prev.length !== next.length) {
-            (prevValue as Record<string, unknown>)[key] = `[${prev.length} kayıt]`;
-            (nextValue as Record<string, unknown>)[key] = `[${next.length} kayıt]`;
+            (prevValue as Record<string, unknown>)[key] =
+              `[${prev.length} kayıt]`;
+            (nextValue as Record<string, unknown>)[key] =
+              `[${next.length} kayıt]`;
           }
         } else {
           (prevValue as Record<string, unknown>)[key] = prev;
@@ -80,7 +88,9 @@ export function computeDiff(
 
     return { prevValue, nextValue };
   } catch (e) {
-    logger.warn('auditEngine', 'computeDiff hatası — diff boş döndürülüyor', { error: String(e) });
+    logger.warn("auditEngine", "computeDiff hatası — diff boş döndürülüyor", {
+      error: String(e),
+    });
     return { prevValue: {}, nextValue: {} };
   }
 }
@@ -98,7 +108,7 @@ export function createAuditEntry(params: {
   entityId?: string;
   prevDB: DB;
   nextDB: DB;
-  status: 'applied' | 'blocked' | 'warned';
+  status: "applied" | "blocked" | "warned";
   violations?: RuleViolation[];
   detail?: string;
   userId?: string;
@@ -115,7 +125,10 @@ export function createAuditEntry(params: {
     userId: params.userId,
     sessionId: getSessionId(),
     status: params.status,
-    violations: params.violations && params.violations.length > 0 ? params.violations : undefined,
+    violations:
+      params.violations && params.violations.length > 0
+        ? params.violations
+        : undefined,
     detail: params.detail,
     time: new Date().toISOString(),
   };
@@ -153,7 +166,10 @@ export function runFullAudit(db: DB): AuditReport {
   for (const entry of db.kasa) {
     if (entry.deleted) continue;
     const cur = recomputedBalances.get(entry.kasa) ?? 0;
-    recomputedBalances.set(entry.kasa, cur + (entry.type === 'gelir' ? entry.amount : -entry.amount));
+    recomputedBalances.set(
+      entry.kasa,
+      cur + (entry.type === "gelir" ? entry.amount : -entry.amount),
+    );
   }
 
   // ── 2. Cari bakiyeleriyle karşılaştır ─────────────────────────────────────
@@ -163,13 +179,16 @@ export function runFullAudit(db: DB): AuditReport {
     if (entry.deleted || !entry.cariId) continue;
     const cur = cariKasaBalances.get(entry.cariId) ?? 0;
     // Gelir = tahsilat (bakiye azalır), gider = ödeme (bakiye artar)
-    cariKasaBalances.set(entry.cariId, cur + (entry.type === 'gelir' ? -entry.amount : entry.amount));
+    cariKasaBalances.set(
+      entry.cariId,
+      cur + (entry.type === "gelir" ? -entry.amount : entry.amount),
+    );
   }
 
   // Satışlardan cari bakiye katkısını hesapla
   const cariSaleBalances = new Map<string, number>();
   for (const sale of db.sales) {
-    if (sale.deleted || sale.status !== 'tamamlandi') continue;
+    if (sale.deleted || sale.status !== "tamamlandi") continue;
     const cariId = sale.cariId || sale.customerId;
     if (!cariId) continue;
     const cur = cariSaleBalances.get(cariId) ?? 0;
@@ -186,7 +205,7 @@ export function runFullAudit(db: DB): AuditReport {
 
     if (drift > BALANCE_DRIFT_TOLERANCE) {
       balanceDrifts.push(
-        `${cari.name} (${cari.id}): hesaplanan ${recomputed.toFixed(2)} ₺, kayıtlı ${cari.balance.toFixed(2)} ₺, fark ${drift.toFixed(2)} ₺`
+        `${cari.name} (${cari.id}): hesaplanan ${recomputed.toFixed(2)} ₺, kayıtlı ${cari.balance.toFixed(2)} ₺, fark ${drift.toFixed(2)} ₺`,
       );
     }
   }
@@ -195,16 +214,15 @@ export function runFullAudit(db: DB): AuditReport {
   // _auditLog'da 'applied' kaydı olmayan KasaEntry'leri tespit et
   const auditedEntryIds = new Set(
     (db._auditLog || [])
-      .filter(a => a.status === 'applied')
-      .map(a => a.entityId)
-      .filter(Boolean)
+      .filter((a) => a.status === "applied")
+      .map((a) => a.entityId)
+      .filter(Boolean),
   );
 
   // Sadece son 24 saatteki kayıtları kontrol et (performans)
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-  const recentKasaEntries = db.kasa.filter(k =>
-    !k.deleted &&
-    new Date(k.createdAt).getTime() > oneDayAgo
+  const recentKasaEntries = db.kasa.filter(
+    (k) => !k.deleted && new Date(k.createdAt).getTime() > oneDayAgo,
   );
 
   // _auditLog henüz boşsa (yeni kurulum) bu kontrolü atla
@@ -212,7 +230,7 @@ export function runFullAudit(db: DB): AuditReport {
     for (const entry of recentKasaEntries) {
       if (!auditedEntryIds.has(entry.id)) {
         riskFlags.push(
-          `Denetim kaydı olmayan kasa işlemi: ${entry.id} (${entry.type}, ${entry.amount} ₺, ${entry.kasa})`
+          `Denetim kaydı olmayan kasa işlemi: ${entry.id} (${entry.type}, ${entry.amount} ₺, ${entry.kasa})`,
         );
       }
     }
@@ -224,20 +242,20 @@ export function runFullAudit(db: DB): AuditReport {
     if (entry.amount > TRANSACTION_LIMIT) {
       anomalies.push({
         entryId: entry.id,
-        issue: `Yüksek tutarlı işlem: ${entry.amount.toFixed(2)} ₺ (limit: ${TRANSACTION_LIMIT.toLocaleString('tr-TR')} ₺)`,
-        severity: 'HIGH',
+        issue: `Yüksek tutarlı işlem: ${entry.amount.toFixed(2)} ₺ (limit: ${TRANSACTION_LIMIT.toLocaleString("tr-TR")} ₺)`,
+        severity: "HIGH",
       });
       riskFlags.push(
-        `TRANSACTION_LIMIT aşımı: kasa kaydı ${entry.id}, tutar ${entry.amount} ₺`
+        `TRANSACTION_LIMIT aşımı: kasa kaydı ${entry.id}, tutar ${entry.amount} ₺`,
       );
     }
   }
 
   // ── 5. _auditLog istatistikleri ────────────────────────────────────────────
   const auditLog = db._auditLog || [];
-  const appliedCount = auditLog.filter(a => a.status === 'applied').length;
-  const blockedCount = auditLog.filter(a => a.status === 'blocked').length;
-  const warnedCount = auditLog.filter(a => a.status === 'warned').length;
+  const appliedCount = auditLog.filter((a) => a.status === "applied").length;
+  const blockedCount = auditLog.filter((a) => a.status === "blocked").length;
+  const warnedCount = auditLog.filter((a) => a.status === "warned").length;
 
   return {
     anomalies,

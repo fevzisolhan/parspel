@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState } from 'react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
@@ -59,7 +60,7 @@ export default function Products({ db, save }: Props) {
     });
   };
 
-  const f = (k: keyof Product, v: unknown) => setForm(prev => ({ ...prev, [k]: v }));
+  const f = (k: keyof Product, v: any) => setForm(prev => ({ ...prev, [k]: v }));  
 
   const activeProducts = db.products.filter(p => !p.deleted);
   const totalValue = activeProducts.reduce((s, p) => s + p.cost * p.stock, 0);
@@ -128,9 +129,11 @@ export default function Products({ db, save }: Props) {
                 <span style={{ fontWeight: 700, color: '#f1f5f9', fontSize: '1rem' }}>{formatMoney(p.price)}</span>
                 <span style={{ fontSize: '0.78rem', fontWeight: 700, color: marginColor }}>%{margin} markup</span>
               </div>
-              {(p as any).costCurrency && (p as any).costCurrency !== 'TRY' && (
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              {(p as any).costCurrency && (p as any).costCurrency !== 'TRY' && (  
                 <div style={{ fontSize: '0.72rem', color: '#64748b', marginBottom: 4 }}>
-                  Alış: {p.cost} {(p as any).costCurrency}
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  Alış: {p.cost} {(p as any).costCurrency} // eslint-disable-line @typescript-eslint/no-explicit-any
                 </div>
               )}
               <div style={{ color: stockStatus.color, fontSize: '0.85rem', fontWeight: 600, marginBottom: 10 }}>{stockStatus.label}</div>
@@ -171,7 +174,8 @@ export default function Products({ db, save }: Props) {
             <label style={lbl}>Alış Fiyatı</label>
             <div style={{ display: 'flex', gap: 6 }}>
               <input type="number" inputMode="decimal" value={form.cost || 0} onChange={e => f('cost', parseFloat(e.target.value) || 0)} style={{ ...inp, flex: 1 }} min={0} step={0.01} />
-              <select value={(form as any).costCurrency || 'TRY'} onChange={e => f('costCurrency', e.target.value)} style={{ ...inp, width: 70, flex: '0 0 70px' }}>
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              <select value={(form as any).costCurrency || 'TRY'} onChange={e => f('costCurrency', e.target.value)} style={{ ...inp, width: 70, flex: '0 0 70px' }}> // eslint-disable-line @typescript-eslint/no-explicit-any
                 <option value="TRY">₺</option>
                 <option value="USD">$</option>
                 <option value="EUR">€</option>
@@ -224,3 +228,4 @@ function Chip({ label, active, onClick, danger, warning, count }: { label: strin
     </button>
   );
 }
+

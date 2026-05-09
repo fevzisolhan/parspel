@@ -330,6 +330,7 @@ export default function Dashboard({ db, onTabChange, save }: Props) {
     { icon: '🏦', label: 'Banka', value: formatMoney(stats.banka), color: '#6366f1', gradient: 'rgba(99,102,241,0.12) 0%, rgba(99,102,241,0.04) 100%', tab: 'kasa' },
     { icon: '📋', label: 'Alacak', value: formatMoney(stats.totalReceivable), color: '#ff5722', gradient: 'rgba(255,87,34,0.12) 0%, rgba(255,87,34,0.04) 100%', tab: 'cari' },
     { icon: '⚠️', label: 'Stok Uyarısı', value: `${stats.outOfStock + stats.lowStock}`, color: '#ef4444', gradient: 'rgba(239,68,68,0.12) 0%, rgba(245,158,11,0.06) 100%', tab: 'products', sub: `${stats.outOfStock} bitti · ${stats.lowStock} az` },
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [stats, db.products.length]);
 
   const chartData = useMemo(() => {

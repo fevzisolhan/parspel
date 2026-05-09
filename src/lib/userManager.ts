@@ -43,7 +43,11 @@ function loadUsersFromCache(): AppUser[] {
 }
 
 function saveUsersToCache(users: AppUser[]): void {
-  try { localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(users)); } catch {}
+  try {
+    localStorage.setItem(USERS_CACHE_KEY, JSON.stringify(users));
+  } catch {
+    // localStorage yazilamasa da akisi bozmuyoruz
+  }
 }
 
 // ── Hash ──────────────────────────────────────────────────────────────────

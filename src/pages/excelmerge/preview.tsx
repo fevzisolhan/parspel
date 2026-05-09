@@ -1,9 +1,15 @@
-import { useState } from "react";
-import { Eye, FileSpreadsheet, ChevronDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { type ExcelFile } from "@/lib/excel-merge";
+import { Eye, FileSpreadsheet } from "lucide-react";
+import { useState } from "react";
 
 interface PreviewPageProps {
   files: ExcelFile[];
@@ -19,12 +25,15 @@ export default function PreviewPage({ files }: PreviewPageProps) {
   const file = files.find((f) => f.id === selectedFileId);
   const sheet = file?.sheets.find((s) => s.name === selectedSheet);
 
-  const filteredRows = sheet?.rows.filter((row) => {
-    if (!filterText.trim()) return true;
-    return Object.values(row).some((v) =>
-      String(v ?? "").toLowerCase().includes(filterText.toLowerCase())
-    );
-  }) ?? [];
+  const filteredRows =
+    sheet?.rows.filter((row) => {
+      if (!filterText.trim()) return true;
+      return Object.values(row).some((v) =>
+        String(v ?? "")
+          .toLowerCase()
+          .includes(filterText.toLowerCase()),
+      );
+    }) ?? [];
 
   const totalPages = Math.ceil(filteredRows.length / pageSize);
   const pagedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
@@ -34,8 +43,12 @@ export default function PreviewPage({ files }: PreviewPageProps) {
       <div className="p-6 max-w-4xl mx-auto">
         <div className="text-center py-16">
           <Eye className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-foreground mb-2">Onizleme icin dosya gerekli</h2>
-          <p className="text-muted-foreground">Lutfen once Dosya Yukle sayfasindan Excel dosyalari yukleyin.</p>
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            Onizleme icin dosya gerekli
+          </h2>
+          <p className="text-muted-foreground">
+            Lutfen once Dosya Yukle sayfasindan Excel dosyalari yukleyin.
+          </p>
         </div>
       </div>
     );
@@ -55,7 +68,12 @@ export default function PreviewPage({ files }: PreviewPageProps) {
           <label className="text-sm font-medium text-foreground">Dosya</label>
           <Select
             value={selectedFileId}
-            onValueChange={(v) => { setSelectedFileId(v); setSelectedSheet(""); setPage(1); setFilterText(""); }}
+            onValueChange={(v) => {
+              setSelectedFileId(v);
+              setSelectedSheet("");
+              setPage(1);
+              setFilterText("");
+            }}
             data-testid="select-preview-file"
           >
             <SelectTrigger className="w-64">
@@ -80,7 +98,11 @@ export default function PreviewPage({ files }: PreviewPageProps) {
             <label className="text-sm font-medium text-foreground">Sayfa</label>
             <Select
               value={selectedSheet}
-              onValueChange={(v) => { setSelectedSheet(v); setPage(1); setFilterText(""); }}
+              onValueChange={(v) => {
+                setSelectedSheet(v);
+                setPage(1);
+                setFilterText("");
+              }}
               data-testid="select-preview-sheet"
             >
               <SelectTrigger className="w-48">
@@ -99,11 +121,16 @@ export default function PreviewPage({ files }: PreviewPageProps) {
 
         {sheet && (
           <div className="space-y-1 flex-1 min-w-48">
-            <label className="text-sm font-medium text-foreground">Filtrele</label>
+            <label className="text-sm font-medium text-foreground">
+              Filtrele
+            </label>
             <Input
               placeholder="Herhangi bir sutunda ara..."
               value={filterText}
-              onChange={(e) => { setFilterText(e.target.value); setPage(1); }}
+              onChange={(e) => {
+                setFilterText(e.target.value);
+                setPage(1);
+              }}
               data-testid="input-preview-filter"
             />
           </div>
@@ -120,7 +147,9 @@ export default function PreviewPage({ files }: PreviewPageProps) {
                   : `${sheet.rows.length.toLocaleString("tr-TR")} satir, ${sheet.headers.length} sutun`}
               </span>
               {filterText && (
-                <Badge variant="secondary" className="text-xs">Filtreli</Badge>
+                <Badge variant="secondary" className="text-xs">
+                  Filtreli
+                </Badge>
               )}
             </div>
             {totalPages > 1 && (
@@ -133,7 +162,9 @@ export default function PreviewPage({ files }: PreviewPageProps) {
                 >
                   &#8249;
                 </button>
-                <span className="text-muted-foreground">{page} / {totalPages}</span>
+                <span className="text-muted-foreground">
+                  {page} / {totalPages}
+                </span>
                 <button
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page === totalPages}
@@ -150,7 +181,9 @@ export default function PreviewPage({ files }: PreviewPageProps) {
             <table className="text-sm w-full">
               <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
                 <tr>
-                  <th className="text-left px-2 py-2 font-medium text-muted-foreground border-b border-r border-border w-10 text-xs">#</th>
+                  <th className="text-left px-2 py-2 font-medium text-muted-foreground border-b border-r border-border w-10 text-xs">
+                    #
+                  </th>
                   {sheet.headers.map((h) => (
                     <th
                       key={h}
@@ -164,8 +197,13 @@ export default function PreviewPage({ files }: PreviewPageProps) {
               <tbody>
                 {pagedRows.length === 0 && (
                   <tr>
-                    <td colSpan={sheet.headers.length + 1} className="text-center py-12 text-muted-foreground">
-                      {filterText ? "Bu filtreyle satir bulunamadi" : "Bu sayfa bos"}
+                    <td
+                      colSpan={sheet.headers.length + 1}
+                      className="text-center py-12 text-muted-foreground"
+                    >
+                      {filterText
+                        ? "Bu filtreyle satir bulunamadi"
+                        : "Bu sayfa bos"}
                     </td>
                   </tr>
                 )}
@@ -197,4 +235,3 @@ export default function PreviewPage({ files }: PreviewPageProps) {
     </div>
   );
 }
-

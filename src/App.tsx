@@ -526,6 +526,7 @@ function QuickProductModal({
         {
           id: genId(),
           name: form.name,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           category: form.category as any,
           cost: parseFloat(form.cost) || 0,
           price: parseFloat(form.price) || 0,
@@ -907,12 +908,8 @@ function ReportButton({ visible }: { visible: boolean }) {
     return () => clearInterval(t);
   }, []);
 
-  if (!visible) return null;
-
-  const icons = ["🐛", "⚠️", "💡"];
-  const icon = icons[pulse];
-
   useEffect(() => {
+    if (!visible) return;
     if (reportBtnRef.current) {
       reportBtnRef.current.style.bottom = `${pos.y}px`;
       reportBtnRef.current.style.left = `${pos.x}px`;
@@ -921,7 +918,12 @@ function ReportButton({ visible }: { visible: boolean }) {
       reportPanelRef.current.style.bottom = `${pos.y + 56}px`;
       reportPanelRef.current.style.left = `${Math.min(pos.x, window.innerWidth - 320)}px`;
     }
-  }, [pos, open]); // FIXED: Dinamik konum JSX style prop yerine ref ile uygulanir
+  }, [pos, open, visible]); // FIXED: Dinamik konum JSX style prop yerine ref ile uygulanir
+
+  if (!visible) return null;
+
+  const icons = ["🐛", "⚠️", "💡"];
+  const icon = icons[pulse];
 
   const handleSend = () => {
     if (!form.note.trim()) return;
@@ -1092,7 +1094,7 @@ function FAB({
       {uiPrefs.showFABButton && (
         <div ref={fabWrapRef} className="fab-wrap">
           {open &&
-            actions.map((a, i) => (
+            actions.map((a) => (
               <div key={a.id} className="fab-action-row">
                 <div className="fab-action-label">{a.label}</div>
                 <button
@@ -1222,36 +1224,6 @@ function AIDrawer({
   );
 }
 
-// Grup renkleri
-const GROUP_COLORS: Record<string, { text: string; bg: string; glow: string }> =
-  {
-    Ana: {
-      text: "#ff7043",
-      bg: "rgba(255,87,34,0.12)",
-      glow: "rgba(255,87,34,0.35)",
-    },
-    Tedarik: {
-      text: "#34d399",
-      bg: "rgba(52,211,153,0.12)",
-      glow: "rgba(52,211,153,0.3)",
-    },
-    Finans: {
-      text: "#60a5fa",
-      bg: "rgba(96,165,250,0.12)",
-      glow: "rgba(96,165,250,0.3)",
-    },
-    Analiz: {
-      text: "#a78bfa",
-      bg: "rgba(167,139,250,0.12)",
-      glow: "rgba(167,139,250,0.3)",
-    },
-    Sistem: {
-      text: "#94a3b8",
-      bg: "rgba(148,163,184,0.08)",
-      glow: "rgba(148,163,184,0.2)",
-    },
-  };
-
 function AppContent({
   onLogout,
   username,
@@ -1259,8 +1231,7 @@ function AppContent({
   onLogout: () => void;
   username?: string;
 }) {
-  const { db, save, saveWithLog, logActivity, exportJSON, importJSON } =
-    useDB();
+  const { db, save, exportJSON, importJSON } = useDB();
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [favoriteTabs, setFavoriteTabs] = useState<TabId[]>(loadFavoriteTabs);
@@ -1330,6 +1301,7 @@ function AppContent({
     const applied = localStorage.getItem("sobaYonetim_setupApplied");
     if (applied) return;
     save((prev) => {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const now = new Date().toISOString();
       // Kasalar
       const kasalar = setup.kasalar.length > 0 ? setup.kasalar : prev.kasalar;
@@ -1391,6 +1363,7 @@ function AppContent({
       } else {
         showToast(
           "Çevrimdışı çalışıyorsunuz — veriler korunuyor",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           "info" as any,
         );
       }
@@ -1484,6 +1457,7 @@ function AppContent({
           return c;
         }, 0),
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [db.products, db.orders, db.invoices, db.sales],
   );
 

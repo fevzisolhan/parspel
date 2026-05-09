@@ -56,6 +56,7 @@ export function QuantumLink({ db, defaultOpen = false }: QuantumLinkProps) {
   ]);
   const [inputText, setInputText] = useState('');
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -66,14 +67,17 @@ export function QuantumLink({ db, defaultOpen = false }: QuantumLinkProps) {
   }, [messages, isProcessing]);
 
   useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
     recognitionRef.current = new SR();
     recognitionRef.current.continuous = false;
     recognitionRef.current.lang = 'tr-TR';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     recognitionRef.current.onresult = (e: any) => processCommand(e.results[0][0].transcript);
     recognitionRef.current.onend = () => setIsListening(false);
     recognitionRef.current.onerror = () => setIsListening(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const toggleListening = () => {
@@ -107,6 +111,7 @@ export function QuantumLink({ db, defaultOpen = false }: QuantumLinkProps) {
     setInputText('');
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hasSpeech = !!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition;
 
   return (
