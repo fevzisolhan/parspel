@@ -1,10 +1,10 @@
 /// <reference types="vitest" />
 /// <reference types="vitest/config" />
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import path from "path";
 import { fileURLToPath } from "url";
+import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -87,18 +87,22 @@ export default defineConfig({
       output: {
         manualChunks: (id) => {
           // Vendor chunk
-          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) return 'vendor';
+          if (
+            id.includes("node_modules/react") ||
+            id.includes("node_modules/react-dom")
+          )
+            return "vendor";
           // Capacitor chunk
-          if (id.includes('@capacitor')) return 'capacitor';
+          if (id.includes("@capacitor")) return "capacitor";
           // Radix UI chunk
-          if (id.includes('@radix-ui')) return 'radix';
+          if (id.includes("@radix-ui")) return "radix";
           // Recharts chunk
-          if (id.includes('recharts') || id.includes('d3-')) return 'charts';
+          if (id.includes("recharts") || id.includes("d3-")) return "charts";
         },
       },
     },
     // Task 13.4: Asset compression
-    minify: 'esbuild',
+    minify: "esbuild",
     // Chunk size uyarısını artır
     chunkSizeWarningLimit: 1000,
     // Source map sadece development'ta
@@ -121,8 +125,8 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./src/test/setup.ts'],
-    exclude: ['**/node_modules/**', '**/dist/**', 'scripts/**', 'e2e/**'],
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "scripts/**", "e2e/**"],
   },
 });
