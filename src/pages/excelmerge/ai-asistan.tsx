@@ -14,6 +14,7 @@ import {
   type OfflineAnalysis,
   type LearnedPattern,
 } from "@/lib/offline-ai";
+import "./ai-asistan.css";
 
 interface Message {
   role: "user" | "assistant";
@@ -277,6 +278,13 @@ export default function AiAsistanPage({ files }: AiAsistanPageProps) {
       .replace(/\n/g, "<br/>");
   };
 
+  const getProgressWidthClass = (count: number, maxCount: number) => {
+    const raw = maxCount > 0 ? (count / maxCount) * 100 : 0;
+    const clamped = Math.max(0, Math.min(100, raw));
+    const rounded = Math.round(clamped / 5) * 5;
+    return `progress-fill-${rounded}`;
+  };
+
   return (
     <div className="flex flex-col h-full max-h-screen">
       <div className="p-4 border-b border-border bg-card/50 flex items-center justify-between shrink-0">
@@ -381,9 +389,9 @@ export default function AiAsistanPage({ files }: AiAsistanPageProps) {
                       {msg.content === "" && streaming ? (
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <div className="flex gap-1">
-                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce bounce-delay-0" />
+                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce bounce-delay-150" />
+                            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce bounce-delay-300" />
                           </div>
                           <span className="text-xs">Dusunuyor...</span>
                         </div>
@@ -599,22 +607,22 @@ export default function AiAsistanPage({ files }: AiAsistanPageProps) {
                     {Object.entries(learnedPatterns.keyColumnPreferences)
                       .sort(([, a], [, b]) => b - a)
                       .slice(0, 10)
-                      .map(([col, count]) => (
-                        <div key={col} className="flex items-center justify-between">
-                          <span className="text-sm text-foreground">{col}</span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-primary rounded-full"
-                                style={{
-                                  width: `${Math.min(100, (count / Math.max(...Object.values(learnedPatterns.keyColumnPreferences))) * 100)}%`,
-                                }}
-                              />
+                      .map(([col, count]) => {
+                        const maxCount = Math.max(...Object.values(learnedPatterns.keyColumnPreferences));
+                        const progressClass = getProgressWidthClass(count, maxCount);
+
+                        return (
+                          <div key={col} className="flex items-center justify-between">
+                            <span className="text-sm text-foreground">{col}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div className={`progress-fill ${progressClass}`} />
+                              </div>
+                              <span className="text-xs text-muted-foreground w-8 text-right">{count}x</span>
                             </div>
-                            <span className="text-xs text-muted-foreground w-8 text-right">{count}x</span>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </CardContent>
                 </Card>
               )}
