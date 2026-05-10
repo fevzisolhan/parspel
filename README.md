@@ -6,7 +6,6 @@ Soba satışı, stok, kasa ve cari takibini tek ekranda yöneten, offline-first 
 
 Bu projede geliştirmeye başlamadan önce aşağıdaki talimat dokümanını okuyun:
 
-- [PARSPEL Multi-Agent Geliştirme Talimatı](./PARSPEL_Multi_Agent_Gelistirme_Talimati.md)
 
 Bu doküman:
 - proje mimarisini,
